@@ -1,5 +1,7 @@
 import math
 
+import torch
+
 class Rule:
     def __init__(self, ranges):
         # each range is left inclusive and right exclusive, i.e., [left, right)
@@ -18,11 +20,14 @@ class Rule:
         return result
 
 class Node:
-    def __init__(self, ranges, rules):
+    def __init__(self, ranges, rules, depth):
         self.ranges = ranges
         self.rules = rules
-        self.state = self.ranges
+        self.depth = depth
         self.children = []
+
+        if self.ranges != None:
+            self.state = torch.tensor([[i/20. for i in self.ranges]])
 
     def compact_ranges(self):
         self.ranges = self.rules[0].ranges.copy()
@@ -30,12 +35,16 @@ class Node:
             for i in range(len(self.ranges)//2):
                 self.ranges[i*2] = min(self.ranges[i*2], rule.ranges[i*2])
                 self.ranges[i*2+1] = max(self.ranges[i*2+1], rule.ranges[i*2+1])
+        self.state = torch.tensor([[i/20. for i in self.ranges]])
+
+    def is_leaf(self):
+        return len(self.rules) == 1
 
     def get_state(self):
         return self.state
 
     def __str__(self):
-        result = "Range:\n%s\nRules:\n" % str(self.ranges)
+        result = "Depth:%d\nRange:\n%s\nRules:\n" % (self.depth, str(self.ranges))
         for rule in self.rules:
             result += str(rule) + "\n"
         return  result
@@ -46,11 +55,14 @@ class Tree:
         self.cuts_per_dimension = 2
 
         self.rules = rules
-        self.root = Node(ranges, rules)
+        self.root = Node(ranges, rules, 1)
         self.root.compact_ranges()
         self.current_node = self.root
         self.nodes_to_cut = [self.root]
-        self.depth = 1
+        self.depth = -1
+
+    def get_depth(self):
+        return self.depth
 
     def get_current_node(self):
         return self.current_node
@@ -58,10 +70,8 @@ class Tree:
     def is_finish(self):
         return len(self.nodes_to_cut) == 0
 
-    def is_leaf(self, node):
-        return len(node.rules) == 1
-
     def cut_current_node(self, action):
+        self.depth = max(self.depth, self.current_node.depth + 1)
         node = self.current_node
         cut_dimension = action
         range_left = node.ranges[cut_dimension*2]
@@ -83,7 +93,7 @@ class Tree:
                     child_ranges[cut_dimension*2+1]):
                     child_rules.append(rule)
 
-            child = Node(child_ranges, child_rules)
+            child = Node(child_ranges, child_rules, node.depth + 1)
             children.append(child)
 
         node.children.extend(children)
@@ -94,7 +104,11 @@ class Tree:
         return children
 
     def get_next_node(self):
-        self.current_node = self.nodes_to_cut.pop()
+        self.nodes_to_cut.pop()
+        if len(self.nodes_to_cut) > 0:
+            self.current_node = self.nodes_to_cut[-1]
+        else:
+            self.current_node = None
         return self.current_node
 
     def print_layers(self, layer_num = 5):
@@ -121,17 +135,17 @@ def test():
     rules.append(Rule([0, 100, 0, 100, 0, 100, 20, 30, 0, 0]))
     rules.append(Rule([0, 100, 0, 100, 0, 100, 40, 50, 0, 0]))
     ranges = [0, 1000, 0, 1000, 0, 1000, 0, 1000, 0, 1000]
-    node = Node(ranges, rules)
+    node = Node(ranges, rules, 1)
     print(node)
     node.compact_ranges()
     print(node)
 
     print("========== tree ==========")
     rules = []
-    rules.append(Rule([0, 10, 0, 10, 0, 0, 0, 0, 0, 0]))
-    rules.append(Rule([0, 10, 10, 20, 0, 0, 0, 0, 0, 0]))
-    rules.append(Rule([10, 20, 0, 10, 0, 0, 0, 0, 0, 0]))
-    rules.append(Rule([10, 20, 10, 20, 0, 0, 0, 0, 0, 0]))
+    rules.append(Rule([0, 10, 0, 10, 0, 1, 0, 1, 0, 1]))
+    rules.append(Rule([0, 10, 10, 20, 0, 1, 0, 1, 0, 1]))
+    rules.append(Rule([10, 20, 0, 10, 0, 1, 0, 1, 0, 1]))
+    rules.append(Rule([10, 20, 10, 20, 0, 1, 0, 1, 0, 1]))
     ranges = [0, 1000, 0, 1000, 0, 1000, 0, 1000, 0, 1000]
     tree = Tree(ranges, rules)
     tree.cut_current_node(0)
