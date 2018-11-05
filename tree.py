@@ -1,4 +1,5 @@
 import math
+import re
 
 import torch
 
@@ -19,15 +20,67 @@ class Rule:
                 self.ranges[i*2], self.ranges[i*2+1])
         return result
 
+def load_rules_from_file(file_name):
+    rules = []
+    rule_fmt = re.compile(r'^@(\d+).(\d+).(\d+).(\d+)/(\d+) '\
+        r'(\d+).(\d+).(\d+).(\d+)/(\d+) ' \
+        r'(\d+) : (\d+) ' \
+        r'(\d+) : (\d+) ' \
+        r'(0x[\da-fA-F]+)/(0x[\da-fA-F]+) ' \
+        r'(.*?)')
+    for idx, line in enumerate(open(file_name)):
+        elements = line[1:-1].split('\t')
+        line = line.replace('\t',' ')
+
+        sip0, sip1, sip2, sip3, sip_mask_len, \
+        dip0, dip1, dip2, dip3, dip_mask_len, \
+        sport_begin, sport_end, \
+        dport_begin, dport_end, \
+        proto, proto_mask = \
+        (eval(rule_fmt.match(line).group(i)) for i in range(1, 17))
+
+        sip0 = (sip0 << 24) | (sip1 << 16) | (sip2 << 8) | sip3
+        sip_begin = sip0 & (~((1 << (32 - sip_mask_len)) - 1))
+        sip_end = sip0 | ((1 << (32 - sip_mask_len)) - 1)
+
+        dip0 = (dip0 << 24) | (dip1 << 16) | (dip2 << 8) | dip3
+        dip_begin = dip0 & (~((1 << (32 - dip_mask_len)) - 1))
+        dip_end = dip0 | ((1 << (32 - dip_mask_len)) - 1)
+
+        if proto_mask == 0xff:
+            proto_begin = proto
+            proto_end = proto
+        else:
+            proto_begin = 0
+            proto_end = 0xff
+
+        rules.append(Rule([sip_begin, sip_end+1,
+            dip_begin, dip_end+1,
+            sport_begin, sport_end+1,
+            dport_begin, dport_end+1,
+            proto_begin, proto_end+1]))
+    return rules
+
 class Node:
     def __init__(self, ranges, rules, depth):
         self.ranges = ranges
         self.rules = rules
         self.depth = depth
         self.children = []
+        self.compute_state()
 
-        if self.ranges != None:
-            self.state = torch.tensor([[i/20. for i in self.ranges]])
+    def compute_state(self):
+        self.state = []
+        for i in range(4):
+            for j in range(4):
+                self.state.append(((self.ranges[i] - i % 2)  >> (j * 8)) & 0xff)
+        for i in range(4):
+            for j in range(2):
+                self.state.append(((self.ranges[i+4] - i % 2) >> (j * 8)) & 0xff)
+        self.state.append(self.ranges[8])
+        self.state.append(self.ranges[9] - 1)
+        self.state = [[i / 256 for i in self.state]]
+        self.state = torch.tensor(self.state)
 
     def compact_ranges(self):
         self.ranges = self.rules[0].ranges.copy()
@@ -35,7 +88,7 @@ class Node:
             for i in range(len(self.ranges)//2):
                 self.ranges[i*2] = min(self.ranges[i*2], rule.ranges[i*2])
                 self.ranges[i*2+1] = max(self.ranges[i*2+1], rule.ranges[i*2+1])
-        self.state = torch.tensor([[i/20. for i in self.ranges]])
+        self.compute_state()
 
     def is_leaf(self):
         return len(self.rules) == 1
@@ -50,12 +103,12 @@ class Node:
         return  result
 
 class Tree:
-    def __init__(self, ranges, rules):
+    def __init__(self, rules):
         # hyperparameters
         self.cuts_per_dimension = 2
 
         self.rules = rules
-        self.root = Node(ranges, rules, 1)
+        self.root = Node([0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1)
         self.root.compact_ranges()
         self.current_node = self.root
         self.nodes_to_cut = [self.root]
@@ -146,8 +199,7 @@ def test():
     rules.append(Rule([0, 10, 10, 20, 0, 1, 0, 1, 0, 1]))
     rules.append(Rule([10, 20, 0, 10, 0, 1, 0, 1, 0, 1]))
     rules.append(Rule([10, 20, 10, 20, 0, 1, 0, 1, 0, 1]))
-    ranges = [0, 1000, 0, 1000, 0, 1000, 0, 1000, 0, 1000]
-    tree = Tree(ranges, rules)
+    tree = Tree(rules)
     tree.cut_current_node(0)
     tree.print_layers()
 
@@ -156,6 +208,11 @@ def test():
     tree.get_next_node()
     tree.cut_current_node(1)
     tree.print_layers()
+
+    print("========== load rule ==========")
+    rules = load_rules_from_file("rules/acl1_20")
+    for rule in rules:
+        print(rule)
 
 if __name__ == "__main__":
     test()
