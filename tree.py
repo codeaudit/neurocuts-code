@@ -90,8 +90,7 @@ class Node:
                 self.ranges[i*2+1] = max(self.ranges[i*2+1], rule.ranges[i*2+1])
         self.compute_state()
 
-    def is_leaf(self):
-        return len(self.rules) == 1
+
 
     def get_state(self):
         return self.state
@@ -103,16 +102,17 @@ class Node:
         return  result
 
 class Tree:
-    def __init__(self, rules):
+    def __init__(self, rules, cuts_per_dimension, leaf_threshold):
         # hyperparameters
-        self.cuts_per_dimension = 2
+        self.cuts_per_dimension = cuts_per_dimension
+        self.leaf_threshold = leaf_threshold
 
         self.rules = rules
         self.root = Node([0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1)
         self.root.compact_ranges()
         self.current_node = self.root
         self.nodes_to_cut = [self.root]
-        self.depth = -1
+        self.depth = 1
 
     def get_depth(self):
         return self.depth
@@ -120,16 +120,19 @@ class Tree:
     def get_current_node(self):
         return self.current_node
 
+    def is_leaf(self, node):
+        return len(node.rules) <= self.leaf_threshold
+
     def is_finish(self):
         return len(self.nodes_to_cut) == 0
 
     def cut_current_node(self, action):
         self.depth = max(self.depth, self.current_node.depth + 1)
         node = self.current_node
-        cut_dimension = action
+        cut_dimension = action // self.cuts_per_dimension
         range_left = node.ranges[cut_dimension*2]
         range_right = node.ranges[cut_dimension*2+1]
-        cut_num = min(self.cuts_per_dimension, range_right - range_left)
+        cut_num = min(2**(action % self.cuts_per_dimension + 1), range_right - range_left)
         range_per_cut = math.ceil((range_right - range_left) / cut_num)
 
         children = []

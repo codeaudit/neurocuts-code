@@ -43,7 +43,7 @@ class CutsNet(nn.Module):
 class NeuroCuts(object):
     def __init__(self, rules):
         # hyperparameters
-        self.N = 50                     # maximum number of episodes
+        self.N = 100000                     # maximum number of episodes
         self.t_train = 10               # training interval
         self.C = 3                      # target model copy interval
         self.gamma = 0.99               # reward discount factor
@@ -51,8 +51,10 @@ class NeuroCuts(object):
         self.epsilon_end = 0.1          # exploration end rate
         self.alpha = 0.1                # learning rate
         self.batch_size = 64            # batch size
-        self.action_size = 5            # action size
         self.replay_memory_size = 10000 # replay memory size
+        self.cuts_per_dimension = 4   # cuts per dimension
+        self.action_size = 5 * self.cuts_per_dimension            # action size
+        self.leaf_threshold = 16        # number of rules in a leaf
 
         # set up
         self.replay_memory = ReplayMemory(self.replay_memory_size)
@@ -82,7 +84,7 @@ class NeuroCuts(object):
             return torch.tensor([[random.randrange(self.action_size)]],
                 dtype=torch.long)
 
-    def optimize_model(self):
+    def optimize_model(self, tree):
         if len(self.replay_memory.memory) < self.batch_size:
             return
         transitions = self.replay_memory.sample(self.batch_size)
@@ -98,9 +100,9 @@ class NeuroCuts(object):
         max_next_q_values = []
         for children in batch_children:
             non_final_mask = torch.tensor(
-                [not child.is_leaf() for child in children],
+                [not tree.is_leaf(child) for child in children],
                 dtype=torch.uint8)
-            non_final_children = [child.get_state() for child in children if not child.is_leaf()]
+            non_final_children = [child.get_state() for child in children if not tree.is_leaf(child)]
 
             children_q_values = torch.zeros(len(children))
             if len(non_final_children) > 0:
@@ -122,25 +124,31 @@ class NeuroCuts(object):
         n = 0
         while n < self.N:
             # build a new tree
-            tree = Tree(self.rules)
+            tree = Tree(self.rules, self.cuts_per_dimension, self.leaf_threshold)
             node = tree.get_current_node()
             t = 0
             while not tree.is_finish():
-                if node.is_leaf():
+                if tree.is_leaf(node):
                     node = tree.get_next_node()
                     continue
 
                 action = self.select_action(node.get_state(), n)
                 children = tree.cut_current_node(action)
-                reward = torch.tensor([[-1.]])
-                self.replay_memory.push((node, action, children, reward))
+                if tree.get_depth() > 30:
+                    reward = torch.tensor([[-100.]])
+                    self.replay_memory.push((node, action, children, reward))
+                    break
+                else:
+                    reward = torch.tensor([[-1.]])
+                    self.replay_memory.push((node, action, children, reward))
 
                 # update parameters
                 if t % self.t_train == 0:
+                    #print("time ", t, tree.get_depth())
                     if t % (self.C * self.t_train) == 0:
                         self.target_net.load_state_dict(
                             self.policy_net.state_dict())
-                    self.optimize_model()
+                    self.optimize_model(tree)
                 node = tree.get_current_node()
                 t += 1
 
@@ -148,7 +156,7 @@ class NeuroCuts(object):
             if min_tree is None or tree.get_depth() < min_tree.get_depth():
                 min_tree = tree
 
-            if n % 10 == 0:
+            if n % 100 == 0:
                 print("episode ", n, min_tree.get_depth())
 
             # next episode
@@ -168,7 +176,7 @@ def test0():
 
 def test1():
     random.seed(1)
-    rules = load_rules_from_file("rules/acl1_10")
+    rules = load_rules_from_file("rules/acl1_100")
     neuro_cuts = NeuroCuts(rules)
     neuro_cuts.train()
 
