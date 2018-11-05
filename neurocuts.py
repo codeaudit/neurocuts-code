@@ -43,7 +43,7 @@ class CutsNet(nn.Module):
 class NeuroCuts(object):
     def __init__(self, rules):
         # hyperparameters
-        self.N = 100000                     # maximum number of episodes
+        self.N = 1000                     # maximum number of episodes
         self.t_train = 10               # training interval
         self.C = 3                      # target model copy interval
         self.gamma = 0.99               # reward discount factor
@@ -52,7 +52,7 @@ class NeuroCuts(object):
         self.alpha = 0.1                # learning rate
         self.batch_size = 64            # batch size
         self.replay_memory_size = 10000 # replay memory size
-        self.cuts_per_dimension = 4   # cuts per dimension
+        self.cuts_per_dimension = 5   # cuts per dimension
         self.action_size = 5 * self.cuts_per_dimension            # action size
         self.leaf_threshold = 16        # number of rules in a leaf
 
@@ -61,6 +61,7 @@ class NeuroCuts(object):
 
         self.policy_net = CutsNet(self.action_size)
         self.optimizer = optim.RMSprop(self.policy_net.parameters())
+        self.batch_count = 0
         self.criterion = nn.MSELoss()
 
         self.target_net = CutsNet(self.action_size)
@@ -87,6 +88,7 @@ class NeuroCuts(object):
     def optimize_model(self, tree):
         if len(self.replay_memory.memory) < self.batch_size:
             return
+        self.batch_count += 1
         transitions = self.replay_memory.sample(self.batch_size)
         batch_node, batch_action, batch_children, batch_reward = zip(*transitions)
         batch_state = torch.cat([node.get_state() for node in batch_node])
@@ -134,7 +136,7 @@ class NeuroCuts(object):
 
                 action = self.select_action(node.get_state(), n)
                 children = tree.cut_current_node(action)
-                if tree.get_depth() > 30:
+                if tree.get_depth() > 22 and t > 1000:
                     reward = torch.tensor([[-100.]])
                     self.replay_memory.push((node, action, children, reward))
                     break
@@ -156,8 +158,8 @@ class NeuroCuts(object):
             if min_tree is None or tree.get_depth() < min_tree.get_depth():
                 min_tree = tree
 
-            if n % 100 == 0:
-                print("episode ", n, min_tree.get_depth())
+            if n % 20 == 0:
+                print("episode ", n, self.batch_count, min_tree.get_depth())
 
             # next episode
             n += 1
@@ -176,7 +178,7 @@ def test0():
 
 def test1():
     random.seed(1)
-    rules = load_rules_from_file("rules/acl1_100")
+    rules = load_rules_from_file("rules/acl1_200")
     neuro_cuts = NeuroCuts(rules)
     neuro_cuts.train()
 
