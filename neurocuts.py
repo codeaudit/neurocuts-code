@@ -1,5 +1,6 @@
 import random
 import math
+import datetime
 
 import torch
 import torchvision
@@ -168,15 +169,17 @@ class NeuroCuts(object):
                 min_tree = tree
 
             if n % 20 == 0:
-                print("episode ", n, self.batch_count, min_tree.get_depth())
+                print(datetime.datetime.now(), "Episode:", n,
+                    "Batch:", self.batch_count,
+                    "Depth:", min_tree.get_depth())
                 #if min_tree.get_depth() < 15:
                 #    print(min_tree)
 
             # next episode
             n += 1
 
-        print(min_tree.get_depth())
-        print(min_tree)
+        print(datetime.datetime.now(), "Depth:", min_tree.get_depth())
+        print(datetime.datetime.now(), "Tree:\n", min_tree)
 
 def test0():
     random.seed(1)
@@ -190,9 +193,9 @@ def test0():
 
 def test1():
     random.seed(1)
-    rules = load_rules_from_file("rules/acl1_20")
+    rules = load_rules_from_file("../classbench/acl1_100")
     neuro_cuts = NeuroCuts(rules)
     neuro_cuts.train()
 
 if __name__ == "__main__":
-    test0()
+    test1()

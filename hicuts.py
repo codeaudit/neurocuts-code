@@ -7,7 +7,7 @@ class HiCuts(object):
         # hyperparameters
         self.leaf_threshold = 16                        # number of rules in a leaf
         self.spfac = 4                                  # space estimation
-        self.max_cut = 32
+        self.max_cut = 4000
 
         # set up
         self.rules = rules
@@ -30,20 +30,21 @@ class HiCuts(object):
         # compute the number of cuts
         range_left = node.ranges[cut_dimension*2]
         range_right = node.ranges[cut_dimension*2+1]
-        cut_num = min(
-            max(4, int(math.sqrt(len(node.rules)))),
-            range_right - range_left)
+        #cut_num = min(
+        #    max(4, int(math.sqrt(len(node.rules)))),
+        #    range_right - range_left)
+        cut_num = min(2, range_right - range_left)
         while True:
             sm_C = cut_num
             range_per_cut = math.ceil((range_right - range_left) / cut_num)
             for rule in node.rules:
-                rule_range_left = rule.ranges[cut_dimension*2]
-                rule_range_right = rule.ranges[cut_dimension*2+1]
+                rule_range_left = max(rule.ranges[cut_dimension*2], range_left)
+                rule_range_right = min(rule.ranges[cut_dimension*2+1], range_right)
                 sm_C += (rule_range_right - range_left - 1) // range_per_cut - \
-                    (rule_range_left - range_left) // range_per_cut
+                    (rule_range_left - range_left) // range_per_cut + 1
             if sm_C < self.spfac * len(node.rules) and \
-                cut_num * 2 <= range_right - range_left and \
-                cut_num * 2 <= self.max_cut:
+                    cut_num * 2 <= range_right - range_left and \
+                    cut_num * 2 <= self.max_cut:
                 cut_num *= 2
             else:
                 break
@@ -73,7 +74,7 @@ def test0():
     cuts.train()
 
 def test1():
-    rules = load_rules_from_file("rules/acl1_200")
+    rules = load_rules_from_file("rules/acl1_500")
     cuts = HiCuts(rules)
     cuts.train()
 
