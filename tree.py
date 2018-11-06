@@ -62,12 +62,14 @@ def load_rules_from_file(file_name):
     return rules
 
 class Node:
-    def __init__(self, ranges, rules, depth):
+    def __init__(self, id, ranges, rules, depth):
+        self.id = id
         self.ranges = ranges
         self.rules = rules
         self.depth = depth
         self.children = []
         self.compute_state()
+        self.action = None
 
     def compute_state(self):
         self.state = []
@@ -90,29 +92,31 @@ class Node:
                 self.ranges[i*2+1] = max(self.ranges[i*2+1], rule.ranges[i*2+1])
         self.compute_state()
 
-
-
     def get_state(self):
         return self.state
 
     def __str__(self):
-        result = "Depth:%d\nRange:\n%s\nRules:\n" % (self.depth, str(self.ranges))
+        result = "ID:%d\tAction:%s\tDepth:%d\tRange:\t%s\nChildren: " % (
+            self.id, str(self.action), self.depth, str(self.ranges))
+        for child in self.children:
+            result += str(child.id) + " "
+        result += "\nRules:\n"
         for rule in self.rules:
             result += str(rule) + "\n"
         return  result
 
 class Tree:
-    def __init__(self, rules, cuts_per_dimension, leaf_threshold):
+    def __init__(self, rules, leaf_threshold):
         # hyperparameters
-        self.cuts_per_dimension = cuts_per_dimension
         self.leaf_threshold = leaf_threshold
 
         self.rules = rules
-        self.root = Node([0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1)
+        self.root = Node(0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1)
         self.root.compact_ranges()
         self.current_node = self.root
         self.nodes_to_cut = [self.root]
         self.depth = 1
+        self.node_count = 1
 
     def get_depth(self):
         return self.depth
@@ -126,13 +130,12 @@ class Tree:
     def is_finish(self):
         return len(self.nodes_to_cut) == 0
 
-    def cut_current_node(self, action):
+    def cut_current_node(self, cut_dimension, cut_num):
         self.depth = max(self.depth, self.current_node.depth + 1)
         node = self.current_node
-        cut_dimension = action // self.cuts_per_dimension
+        node.action = (cut_dimension, cut_num)
         range_left = node.ranges[cut_dimension*2]
         range_right = node.ranges[cut_dimension*2+1]
-        cut_num = min(2**(action % self.cuts_per_dimension + 1), range_right - range_left)
         range_per_cut = math.ceil((range_right - range_left) / cut_num)
 
         children = []
@@ -149,8 +152,9 @@ class Tree:
                     child_ranges[cut_dimension*2+1]):
                     child_rules.append(rule)
 
-            child = Node(child_ranges, child_rules, node.depth + 1)
+            child = Node(self.node_count, child_ranges, child_rules, node.depth + 1)
             children.append(child)
+            self.node_count += 1
 
         node.children.extend(children)
         children.reverse()
@@ -180,6 +184,21 @@ class Tree:
                 next_layer_nodes.extend(node.children)
             nodes = next_layer_nodes
 
+    def __str__(self):
+        result = ""
+        nodes = [self.root]
+        while len(nodes) != 0:
+            next_layer_nodes = []
+            for node in nodes:
+                result += "%d; %s; %s; [" % (
+                    node.id, str(node.action), str(node.ranges))
+                for child in node.children:
+                    result += str(child.id) + " "
+                result += "]\n"
+                next_layer_nodes.extend(node.children)
+            nodes = next_layer_nodes
+        return result
+
 def test():
     print("========== rule ==========")
     rule = Rule([0, 10, 0, 10, 10, 20, 0, 0, 0, 0])
@@ -191,7 +210,7 @@ def test():
     rules.append(Rule([0, 100, 0, 100, 0, 100, 20, 30, 0, 0]))
     rules.append(Rule([0, 100, 0, 100, 0, 100, 40, 50, 0, 0]))
     ranges = [0, 1000, 0, 1000, 0, 1000, 0, 1000, 0, 1000]
-    node = Node(ranges, rules, 1)
+    node = Node(0, ranges, rules, 1)
     print(node)
     node.compact_ranges()
     print(node)
@@ -202,15 +221,18 @@ def test():
     rules.append(Rule([0, 10, 10, 20, 0, 1, 0, 1, 0, 1]))
     rules.append(Rule([10, 20, 0, 10, 0, 1, 0, 1, 0, 1]))
     rules.append(Rule([10, 20, 10, 20, 0, 1, 0, 1, 0, 1]))
-    tree = Tree(rules)
-    tree.cut_current_node(0)
+    tree = Tree(rules, 1)
+    tree.cut_current_node(0, 2)
     tree.print_layers()
 
-    tree.cut_current_node(1)
+    tree.cut_current_node(1, 2)
     tree.get_next_node()
     tree.get_next_node()
-    tree.cut_current_node(1)
+    tree.cut_current_node(1, 2)
     tree.print_layers()
+
+    print("========== print tree ==========")
+    print(tree)
 
     print("========== load rule ==========")
     rules = load_rules_from_file("rules/acl1_20")
