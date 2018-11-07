@@ -85,11 +85,14 @@ class Node:
         self.state = torch.tensor(self.state)
 
     def compact_ranges(self):
-        self.ranges = self.rules[0].ranges.copy()
-        for rule in self.rules:
+        new_ranges = self.rules[0].ranges.copy()
+        for rule in self.rules[1:]:
             for i in range(len(self.ranges)//2):
-                self.ranges[i*2] = min(self.ranges[i*2], rule.ranges[i*2])
-                self.ranges[i*2+1] = max(self.ranges[i*2+1], rule.ranges[i*2+1])
+                new_ranges[i*2] = min(new_ranges[i*2], rule.ranges[i*2])
+                new_ranges[i*2+1] = max(new_ranges[i*2+1], rule.ranges[i*2+1])
+        for i in range(len(self.ranges)//2):
+            self.ranges[i*2] = max(new_ranges[i*2], self.ranges[i*2])
+            self.ranges[i*2+1] = min(new_ranges[i*2+1], self.ranges[i*2+1])
         self.compute_state()
 
     def get_state(self):
