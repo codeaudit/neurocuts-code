@@ -5,9 +5,9 @@ from tree import *
 class HiCuts(object):
     def __init__(self, rules):
         # hyperparameters
-        self.leaf_threshold = 16                        # number of rules in a leaf
-        self.spfac = 4                                  # space estimation
-        self.max_cut = 4000
+        self.leaf_threshold = 16    # number of rules in a leaf
+        self.spfac = 4              # space estimation
+        self.max_cut = 32           # max number of cuts per node
 
         # set up
         self.rules = rules
@@ -63,20 +63,3 @@ class HiCuts(object):
             node = tree.get_current_node()
         print(tree.get_depth())
         #print(tree)
-
-def test0():
-    rules = []
-    rules.append(Rule([0, 10, 0, 10, 0, 1, 0, 1, 0, 1]))
-    rules.append(Rule([0, 10, 10, 20, 0, 1, 0, 1, 0, 1]))
-    rules.append(Rule([10, 20, 0, 10, 0, 1, 0, 1, 0, 1]))
-    rules.append(Rule([10, 20, 10, 20, 0, 1, 0, 1, 0, 1]))
-    cuts = HiCuts(rules)
-    cuts.train()
-
-def test1():
-    rules = load_rules_from_file("rules/acl1_500")
-    cuts = HiCuts(rules)
-    cuts.train()
-
-if __name__ == "__main__":
-    test1()

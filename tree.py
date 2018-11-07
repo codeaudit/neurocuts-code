@@ -112,7 +112,6 @@ class Tree:
 
         self.rules = rules
         self.root = Node(0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1)
-        self.root.compact_ranges()
         self.current_node = self.root
         self.nodes_to_cut = [self.root]
         self.depth = 1
@@ -198,46 +197,3 @@ class Tree:
                 next_layer_nodes.extend(node.children)
             nodes = next_layer_nodes
         return result
-
-def test():
-    print("========== rule ==========")
-    rule = Rule([0, 10, 0, 10, 10, 20, 0, 0, 0, 0])
-    print(rule)
-
-    print("========== node ==========")
-    rules = []
-    rules.append(Rule([0, 10, 0, 10, 10, 20, 10, 15, 0, 0]))
-    rules.append(Rule([0, 100, 0, 100, 0, 100, 20, 30, 0, 0]))
-    rules.append(Rule([0, 100, 0, 100, 0, 100, 40, 50, 0, 0]))
-    ranges = [0, 1000, 0, 1000, 0, 1000, 0, 1000, 0, 1000]
-    node = Node(0, ranges, rules, 1)
-    print(node)
-    node.compact_ranges()
-    print(node)
-
-    print("========== tree ==========")
-    rules = []
-    rules.append(Rule([0, 10, 0, 10, 0, 1, 0, 1, 0, 1]))
-    rules.append(Rule([0, 10, 10, 20, 0, 1, 0, 1, 0, 1]))
-    rules.append(Rule([10, 20, 0, 10, 0, 1, 0, 1, 0, 1]))
-    rules.append(Rule([10, 20, 10, 20, 0, 1, 0, 1, 0, 1]))
-    tree = Tree(rules, 1)
-    tree.cut_current_node(0, 2)
-    tree.print_layers()
-
-    tree.cut_current_node(1, 2)
-    tree.get_next_node()
-    tree.get_next_node()
-    tree.cut_current_node(1, 2)
-    tree.print_layers()
-
-    print("========== print tree ==========")
-    print(tree)
-
-    print("========== load rule ==========")
-    rules = load_rules_from_file("rules/acl1_20")
-    for rule in rules:
-        print(rule)
-
-if __name__ == "__main__":
-    test()
