@@ -1,5 +1,6 @@
 from neurocuts import *
 from hicuts import *
+from hypercuts import *
 
 def run_neurocuts():
     random.seed(1)
@@ -12,6 +13,12 @@ def run_hicuts():
     cuts = HiCuts(rules)
     cuts.train()
 
+def run_hypercuts():
+    rules = load_rules_from_file("classbench/acl1_500")
+    cuts = HyperCuts(rules)
+    cuts.train()
+
 if __name__ == "__main__":
-    run_neurocuts()
-    run_hicuts()
+    #run_neurocuts()
+    #run_hicuts()
+    run_hypercuts()

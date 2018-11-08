@@ -13,6 +13,13 @@ class Rule:
         return not (left >= self.ranges[dimension*2+1] or \
             right <= self.ranges[dimension*2])
 
+    def is_intersect_multi_dimension(self, ranges):
+        for i in range(5):
+            if ranges[i*2] >= self.ranges[i*2+1] or \
+                    ranges[i*2+1] <= self.ranges[i*2]:
+                return False
+        return True
+
     def __str__(self):
         result = ""
         for i in range(len(self.names)):
@@ -132,6 +139,13 @@ class Tree:
     def is_finish(self):
         return len(self.nodes_to_cut) == 0
 
+    def update_tree(self, node, children):
+        node.children.extend(children)
+        children.reverse()
+        self.nodes_to_cut.pop()
+        self.nodes_to_cut.extend(children)
+        self.current_node = self.nodes_to_cut[-1]
+
     def cut_current_node(self, cut_dimension, cut_num):
         self.depth = max(self.depth, self.current_node.depth + 1)
         node = self.current_node
@@ -158,11 +172,60 @@ class Tree:
             children.append(child)
             self.node_count += 1
 
-        node.children.extend(children)
-        children.reverse()
-        self.nodes_to_cut.pop()
-        self.nodes_to_cut.extend(children)
-        self.current_node = self.nodes_to_cut[-1]
+        self.update_tree(node, children)
+        return children
+
+    def cut_current_node_multi_dimension(self, cut_dimensions, cut_nums):
+        self.depth = max(self.depth, self.current_node.depth + 1)
+        node = self.current_node
+        node.action = (cut_dimensions, cut_nums)
+
+        range_per_cut = []
+        for i in range(len(cut_dimensions)):
+            range_left = node.ranges[cut_dimensions[i]*2]
+            range_right = node.ranges[cut_dimensions[i]*2+1]
+            cut_num = cut_nums[i]
+            range_per_cut.append(
+                math.ceil((range_right - range_left) / cut_num))
+
+        cut_index = [0 for i in range(len(cut_dimensions))]
+        children = []
+        while True:
+            # compute child ranges
+            child_ranges = node.ranges.copy()
+            for i in range(len(cut_dimensions)):
+                dimension = cut_dimensions[i]
+                child_ranges[dimension*2] = node.ranges[dimension*2] + \
+                    cut_index[i] * range_per_cut[i]
+                child_ranges[dimension*2+1] = min(node.ranges[dimension*2+1],
+                    node.ranges[dimension*2] + (cut_index[i]+1) * range_per_cut[i])
+
+            # compute child rules
+            child_rules = []
+            for rule in node.rules:
+                if rule.is_intersect_multi_dimension(child_ranges):
+                    child_rules.append(rule)
+
+            # create new child
+            child = Node(self.node_count, child_ranges, child_rules, node.depth + 1)
+            children.append(child)
+            self.node_count += 1
+
+            # update cut index
+            cut_index[0] += 1
+            i = 0
+            while cut_index[i] == cut_nums[i]:
+                cut_index[i] = 0
+                i += 1
+                if i < len(cut_nums):
+                    cut_index[i] += 1
+                else:
+                    break
+
+            if i == len(cut_nums):
+                break;
+
+        self.update_tree(node, children)
         return children
 
     def get_next_node(self):

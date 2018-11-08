@@ -1,4 +1,5 @@
 import math
+import datetime
 
 from tree import *
 
@@ -51,8 +52,10 @@ class HiCuts(object):
         return (cut_dimension, cut_num)
 
     def train(self):
+        print(datetime.datetime.now(), "HiCuts starts")
         tree = Tree(self.rules, self.leaf_threshold)
         node = tree.get_current_node()
+        count = 0
         while not tree.is_finish():
             if tree.is_leaf(node):
                 node = tree.get_next_node()
@@ -61,5 +64,10 @@ class HiCuts(object):
             cut_dimension, cut_num = self.select_action(tree, node)
             tree.cut_current_node(cut_dimension, cut_num)
             node = tree.get_current_node()
-        print(tree.get_depth())
+            count += 1
+            if count % 1000 == 0:
+                print(datetime.datetime.now(),
+                    "Depth:", tree.get_depth(),
+                    "Remaining nodes:", len(tree.nodes_to_cut))
+        print(datetime.datetime.now(), "Depth:", tree.get_depth())
         #print(tree)

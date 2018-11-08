@@ -4,8 +4,14 @@ from hicuts import *
 
 def test_tree():
     print("========== rule ==========")
-    rule = Rule([0, 10, 0, 10, 10, 20, 0, 0, 0, 0])
+    rule = Rule([0, 10, 0, 10, 10, 20, 0, 1, 0, 1])
     print(rule)
+    print("True", rule.is_intersect(2, 0, 11))
+    print("False", rule.is_intersect(2, 0, 10))
+    print("False", rule.is_intersect(2, 20, 21))
+    print("True", rule.is_intersect_multi_dimension([0, 10, 0, 10, 0, 11, 0, 1, 0, 1]))
+    print("False", rule.is_intersect_multi_dimension([0, 10, 0, 10, 0, 10, 0, 1, 0, 1]))
+    print("False", rule.is_intersect_multi_dimension([0, 10, 0, 10, 20, 21, 0, 1, 0, 1]))
 
     print("========== node ==========")
     rules = []
@@ -39,7 +45,7 @@ def test_tree():
     print(tree)
 
     print("========== load rule ==========")
-    rules = load_rules_from_file("rules/acl1_20")
+    rules = load_rules_from_file("classbench/acl1_20")
     for rule in rules:
         print(rule)
 
@@ -65,6 +71,6 @@ def test_hicuts():
     cuts.train()
 
 if __name__ == "__main__":
-    test_tree()
-    test_neurocuts()
-    test_hicuts()
+    #test_tree()
+    #test_neurocuts()
+    #test_hicuts()
