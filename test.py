@@ -1,6 +1,9 @@
+import sys
+
 from tree import *
 from neurocuts import *
 from hicuts import *
+from hypercuts import *
 
 def test_tree():
     print("========== rule ==========")
@@ -24,7 +27,7 @@ def test_tree():
     node.compact_ranges()
     print(node)
 
-    print("========== tree ==========")
+    print("========== tree single-dimensional cuts ==========")
     rules = []
     rules.append(Rule([0, 10, 0, 10, 0, 1, 0, 1, 0, 1]))
     rules.append(Rule([0, 10, 10, 20, 0, 1, 0, 1, 0, 1]))
@@ -39,6 +42,17 @@ def test_tree():
     tree.get_next_node()
     tree.get_next_node()
     tree.cut_current_node(1, 2)
+    tree.print_layers()
+
+    print("========== tree multi-dimensional cuts ==========")
+    rules = []
+    rules.append(Rule([0, 10, 0, 10, 0, 1, 0, 1, 0, 1]))
+    rules.append(Rule([0, 10, 10, 20, 0, 1, 0, 1, 0, 1]))
+    rules.append(Rule([10, 20, 0, 10, 0, 1, 0, 1, 0, 1]))
+    rules.append(Rule([10, 20, 10, 20, 0, 1, 0, 1, 0, 1]))
+    tree = Tree(rules, 1)
+    tree.root.compact_ranges()
+    tree.cut_current_node_multi_dimension([0, 1, 2, 3, 4], [2, 2, 1, 1, 1])
     tree.print_layers()
 
     print("========== print tree ==========")
@@ -70,7 +84,19 @@ def test_hicuts():
     cuts = HiCuts(rules)
     cuts.train()
 
+def test_hypercuts():
+    print("========== hypercuts ==========")
+    rules = []
+    rules.append(Rule([0, 10, 0, 10, 0, 1, 0, 1, 0, 1]))
+    rules.append(Rule([0, 10, 10, 20, 0, 1, 0, 1, 0, 1]))
+    rules.append(Rule([10, 20, 0, 10, 0, 1, 0, 1, 0, 1]))
+    rules.append(Rule([10, 20, 10, 20, 0, 1, 0, 1, 0, 1]))
+    cuts = HyperCuts(rules)
+    cuts.leaf_threshold = 1
+    cuts.train()
+
 if __name__ == "__main__":
     #test_tree()
     #test_neurocuts()
     #test_hicuts()
+    test_hypercuts()

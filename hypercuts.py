@@ -43,7 +43,7 @@ class HyperCuts(object):
             last_mean = len(node.rules)
             last_max = len(node.rules)
             last_empty = 0
-            while total_cuts * cut_num < self.spfac * math.sqrt(len(node.rules)):
+            while True:
                 cut_num *= 2
 
                 # compute rule count in each child
@@ -64,9 +64,12 @@ class HyperCuts(object):
                     if count == 0])
 
                 # check condition
-                if abs(last_mean - current_mean) < 0.1 * last_mean or \
-                        abs(last_mean - current_mean) < 0.1 * last_mean or \
-                        abs(last_empty - current_empty) > 5:
+                if cut_num > range_right - range_left or \
+                    total_cuts * cut_num > self.spfac * math.sqrt(len(node.rules)) or \
+                    total_cuts * cut_num > self.max_cut or \
+                    abs(last_mean - current_mean) < 0.1 * last_mean or \
+                    abs(last_mean - current_mean) < 0.1 * last_mean or \
+                    abs(last_empty - current_empty) > 5:
                     cut_num //= 2
                     break
             cut_nums.append(cut_num)
