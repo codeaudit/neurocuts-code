@@ -14,7 +14,7 @@ def run_hicuts():
     cuts.train()
 
 def run_hypercuts():
-    rules = load_rules_from_file("classbench/acl1_500")
+    rules = load_rules_from_file("../classbench/acl1_100K")
     cuts = HyperCuts(rules)
     cuts.train()
 

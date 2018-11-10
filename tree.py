@@ -20,6 +20,15 @@ class Rule:
                 return False
         return True
 
+    def is_covered_by(self, other, ranges):
+        for i in range(5):
+            if (max(self.ranges[i*2], ranges[i*2]) < \
+                    max(other.ranges[i*2], ranges[i*2]))or \
+                    (min(self.ranges[i*2+1], ranges[i*2+1]) > \
+                    min(other.ranges[i*2+1], ranges[i*2+1])):
+                return False
+        return True
+
     def __str__(self):
         result = ""
         for i in range(len(self.names)):
@@ -77,6 +86,7 @@ class Node:
         self.children = []
         self.compute_state()
         self.action = None
+        self.pushup_rules = None
 
     def compute_state(self):
         self.state = []
@@ -91,17 +101,6 @@ class Node:
         self.state = [[i / 256 for i in self.state]]
         self.state = torch.tensor(self.state)
 
-    def compact_ranges(self):
-        new_ranges = self.rules[0].ranges.copy()
-        for rule in self.rules[1:]:
-            for i in range(len(self.ranges)//2):
-                new_ranges[i*2] = min(new_ranges[i*2], rule.ranges[i*2])
-                new_ranges[i*2+1] = max(new_ranges[i*2+1], rule.ranges[i*2+1])
-        for i in range(len(self.ranges)//2):
-            self.ranges[i*2] = max(new_ranges[i*2], self.ranges[i*2])
-            self.ranges[i*2+1] = min(new_ranges[i*2+1], self.ranges[i*2+1])
-        self.compute_state()
-
     def get_state(self):
         return self.state
 
@@ -113,19 +112,38 @@ class Node:
         result += "\nRules:\n"
         for rule in self.rules:
             result += str(rule) + "\n"
+        if self.pushup_rules != None:
+            result += "Pushup Rules:\n"
+            for rule in self.pushup_rules:
+                result += str(rule) + "\n"
         return  result
 
 class Tree:
     def __init__(self, rules, leaf_threshold):
         # hyperparameters
         self.leaf_threshold = leaf_threshold
+        self.refinements = {
+            "node_merging"      : True,
+            "rule_overlay"      : True,
+            "region_compaction" : True,
+            "rule_pushup"       : False,}
 
         self.rules = rules
-        self.root = Node(0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1)
+        self.root = self.create_node(0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1)
         self.current_node = self.root
         self.nodes_to_cut = [self.root]
         self.depth = 1
         self.node_count = 1
+
+    def create_node(self, id, ranges, rules, depth):
+        node = Node(id, ranges, rules, depth)
+
+        if self.refinements["rule_overlay"]:
+            self.refinement_rule_overlay(node)
+
+        if (self.refinements["region_compaction"]):
+            self.refinement_region_compaction(node)
+        return node
 
     def get_depth(self):
         return self.depth
@@ -140,6 +158,17 @@ class Tree:
         return len(self.nodes_to_cut) == 0
 
     def update_tree(self, node, children):
+        print(children)
+        if self.refinements["node_merging"]:
+            merged_children = [children[0]]
+            last_child = children[0]
+            for i in range(1, len(children)):
+                if not self.refinement_node_merging(last_child, children[i]):
+                    merged_children.append(children[i])
+                    last_child = children[i]
+            children = merged_children
+        print(children)
+
         node.children.extend(children)
         children.reverse()
         self.nodes_to_cut.pop()
@@ -207,7 +236,7 @@ class Tree:
                     child_rules.append(rule)
 
             # create new child
-            child = Node(self.node_count, child_ranges, child_rules, node.depth + 1)
+            child = self.create_node(self.node_count, child_ranges, child_rules, node.depth + 1)
             children.append(child)
             self.node_count += 1
 
@@ -235,6 +264,92 @@ class Tree:
         else:
             self.current_node = None
         return self.current_node
+
+    def refinement_node_merging(self, node1, node2):
+        # check region
+        count = 0
+        for i in range(5):
+            if node1.ranges[i*2+1] == node2.ranges[i*2] or \
+                    node2.ranges[i*2+1] == node1.ranges[i*2]:
+                if count == 1:
+                    return False
+                else:
+                    count = 1
+            elif node1.ranges[i*2] != node2.ranges[i*2] or \
+                    node1.ranges[i*2+1] != node2.ranges[i*2+1]:
+                return False
+        if count == 0:
+            return False
+
+        # check rules
+        if set(node1.rules) == set(node2.rules):
+            for i in range(5):
+                node1.ranges[i*2] = min(node1.ranges[i*2], node2.ranges[i*2])
+                node1.ranges[i*2+1] = max(node1.ranges[i*2+1], node2.ranges[i*2+1])
+            return True
+        else:
+            return False
+
+    def refinement_rule_overlay(self, node):
+        if len(node.rules) == 0 or len(node.rules) > 10000:
+            return
+
+        new_rules = []
+        for i in range(len(node.rules) - 1):
+            rule = node.rules[len(node.rules) -  1 - i]
+            flag = False
+            for j in range(0, len(node.rules) -  1 - i):
+                high_priority_rule = node.rules[j]
+                if rule.is_covered_by(high_priority_rule, node.ranges):
+                    flag = True
+                    break
+            if not flag:
+                new_rules.append(rule)
+        new_rules.append(node.rules[0])
+        new_rules.reverse()
+        node.rules = new_rules
+
+    def refinement_region_compaction(self, node):
+        if len(node.rules) == 0:
+            return
+
+        new_ranges = node.rules[0].ranges.copy()
+        for rule in node.rules[1:]:
+            for i in range(5):
+                new_ranges[i*2] = min(new_ranges[i*2], rule.ranges[i*2])
+                new_ranges[i*2+1] = max(new_ranges[i*2+1], rule.ranges[i*2+1])
+        for i in range(5):
+            node.ranges[i*2] = max(new_ranges[i*2], node.ranges[i*2])
+            node.ranges[i*2+1] = min(new_ranges[i*2+1], node.ranges[i*2+1])
+        node.compute_state()
+
+    def refinement_rule_pushup(self):
+        nodes_by_layer = [None for i in range(self.depth)]
+
+        current_layer_nodes = [self.root]
+        nodes_by_layer[0] = current_layer_nodes
+        for i in range(self.depth - 1):
+            next_layer_nodes = []
+            for node in current_layer_nodes:
+                next_layer_nodes.extend(node.children)
+            nodes_by_layer[i+1] = next_layer_nodes
+            current_layer_nodes = next_layer_nodes
+
+        for i in reversed(range(self.depth)):
+            for node in nodes_by_layer[i]:
+                if len(node.children) == 0:
+                    node.pushup_rules = set(node.rules)
+                else:
+                    node.pushup_rules = node.children[0].pushup_rules.copy()
+                    for j in range(1, len(node.children)):
+                        node.pushup_rules = node.pushup_rules.intersection(node.children[j].pushup_rules)
+                    for child in node.children:
+                        child.pushup_rules = child.pushup_rules.difference(node.pushup_rules)
+
+    def compute_result(self):
+        if self.refinements["rule_pushup"]:
+            self.refinement_rule_pushup()
+
 
     def print_layers(self, layer_num = 5):
         nodes = [self.root]
