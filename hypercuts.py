@@ -85,7 +85,11 @@ class HyperCuts(object):
 
     def train(self):
         print(datetime.datetime.now(), "HyperCuts starts")
-        tree = Tree(self.rules, self.leaf_threshold)
+        tree = Tree(self.rules, self.leaf_threshold,
+            {"node_merging"     : True,
+            "rule_overlay"      : True,
+            "region_compaction" : True,
+            "rule_pushup"       : True})
         node = tree.get_current_node()
         count = 0
         while not tree.is_finish():
@@ -97,9 +101,14 @@ class HyperCuts(object):
             tree.cut_current_node_multi_dimension(cut_dimension, cut_num)
             node = tree.get_current_node()
             count += 1
-            if count % 1000 == 0:
+            if count % 10000 == 0:
                 print(datetime.datetime.now(),
                     "Depth:", tree.get_depth(),
                     "Remaining nodes:", len(tree.nodes_to_cut))
-        print(datetime.datetime.now(), "Depth:", tree.get_depth())
+        result = tree.compute_result()
+        print("%s Depth:%d Memory access:%d Bytes per rules: %f" %
+            (datetime.datetime.now(),
+            tree.get_depth(),
+            result["memory_access"],
+            result["bytes_per_rule"]))
         #print(tree)

@@ -9,14 +9,18 @@ def run_neurocuts():
     neuro_cuts.train()
 
 def run_hicuts():
-    rules = load_rules_from_file("classbench/acl1_200")
-    cuts = HiCuts(rules)
-    cuts.train()
+    for i in ["100", "1K", "10K"]:
+        print(i)
+        rules = load_rules_from_file("../classbench/acl1_%s" % i)
+        cuts = HiCuts(rules)
+        cuts.train()
 
 def run_hypercuts():
-    rules = load_rules_from_file("../classbench/acl1_100K")
-    cuts = HyperCuts(rules)
-    cuts.train()
+    for i in ["100", "500", "1000"]:
+        print(i)
+        rules = load_rules_from_file("classbench/acl1_%s" % i)
+        cuts = HyperCuts(rules)
+        cuts.train()
 
 if __name__ == "__main__":
     #run_neurocuts()

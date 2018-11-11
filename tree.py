@@ -119,14 +119,15 @@ class Node:
         return  result
 
 class Tree:
-    def __init__(self, rules, leaf_threshold):
+    def __init__(self, rules, leaf_threshold,
+        refinements = {
+            "node_merging"      : False,
+            "rule_overlay"      : False,
+            "region_compaction" : False,
+            "rule_pushup"       : False}):
         # hyperparameters
         self.leaf_threshold = leaf_threshold
-        self.refinements = {
-            "node_merging"      : True,
-            "rule_overlay"      : True,
-            "region_compaction" : True,
-            "rule_pushup"       : False,}
+        self.refinements = refinements
 
         self.rules = rules
         self.root = self.create_node(0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1)
@@ -158,7 +159,6 @@ class Tree:
         return len(self.nodes_to_cut) == 0
 
     def update_tree(self, node, children):
-        print(children)
         if self.refinements["node_merging"]:
             merged_children = [children[0]]
             last_child = children[0]
@@ -167,7 +167,6 @@ class Tree:
                     merged_children.append(children[i])
                     last_child = children[i]
             children = merged_children
-        print(children)
 
         node.children.extend(children)
         children.reverse()
@@ -350,6 +349,32 @@ class Tree:
         if self.refinements["rule_pushup"]:
             self.refinement_rule_pushup()
 
+        # memory space
+        # header: 2 bytes
+        # region boundary: 16 bytes
+        # each child pointer: 4 bytes
+        # each rule pointer: 4 bytes
+        result = {"bytes_per_rule": 0, "memory_access": 0}
+        nodes = [self.root]
+        while len(nodes) != 0:
+            next_layer_nodes = []
+            for node in nodes:
+                next_layer_nodes.extend(node.children)
+
+                # compute bytes per rule
+                result["bytes_per_rule"] += 2 + 16 + len(node.children) * 4
+                if node.pushup_rules != None:
+                    result["bytes_per_rule"] += len(node.pushup_rules) * 4
+                elif self.is_leaf(node):
+                    result["bytes_per_rule"] += len(node.rules) * 4
+
+                # compute memory access
+                if self.is_leaf(node):
+                    result["memory_access"] = max(result["memory_access"],
+                        node.depth + len(node.rules))
+            nodes = next_layer_nodes
+        result["bytes_per_rule"] /= len(self.rules)
+        return result
 
     def print_layers(self, layer_num = 5):
         nodes = [self.root]

@@ -141,7 +141,6 @@ def test_refinements():
     tree.refinement_rule_pushup()
     tree.print_layers()
 
-
 def test_neurocuts():
     print("========== neurocuts ==========")
     random.seed(1)
