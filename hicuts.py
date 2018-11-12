@@ -8,7 +8,6 @@ class HiCuts(object):
         # hyperparameters
         self.leaf_threshold = 16    # number of rules in a leaf
         self.spfac = 4              # space estimation
-        self.max_cut = 32           # max number of cuts per node
 
         # set up
         self.rules = rules
@@ -44,8 +43,7 @@ class HiCuts(object):
                 sm_C += (rule_range_right - range_left - 1) // range_per_cut - \
                     (rule_range_left - range_left) // range_per_cut + 1
             if sm_C < self.spfac * len(node.rules) and \
-                    cut_num * 2 <= range_right - range_left and \
-                    cut_num * 2 <= self.max_cut:
+                    cut_num * 2 <= range_right - range_left:
                 cut_num *= 2
             else:
                 break

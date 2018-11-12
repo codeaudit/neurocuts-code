@@ -351,7 +351,7 @@ class Tree:
 
         # memory space
         # header: 2 bytes
-        # region boundary: 16 bytes
+        # region boundary for non-leaf: 16 bytes
         # each child pointer: 4 bytes
         # each rule pointer: 4 bytes
         # each rule: 16 bytes
@@ -363,8 +363,12 @@ class Tree:
                 next_layer_nodes.extend(node.children)
 
                 # compute bytes per rule
-                result["bytes_per_rule"] += 2 + 16 + len(node.children) * 4
-                if node.pushup_rules != None:
+                x = result["bytes_per_rule"]
+                result["bytes_per_rule"] += 2 + len(node.children) * 4
+                if not self.is_leaf(node):
+                    result["bytes_per_rule"] += 16
+
+                if self.refinements["rule_pushup"]:
                     result["bytes_per_rule"] += len(node.pushup_rules) * 4
                 elif self.is_leaf(node):
                     result["bytes_per_rule"] += len(node.rules) * 4

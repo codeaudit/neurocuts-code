@@ -1,4 +1,4 @@
-import math
+import math, sys
 import datetime
 
 from tree import *
@@ -8,7 +8,6 @@ class HyperCuts(object):
         # hyperparameters
         self.leaf_threshold = 16    # number of rules in a leaf
         self.spfac = 4              # space estimation
-        self.max_cut = 32           # max number of cuts per node
 
         # set up
         self.rules = rules
@@ -66,7 +65,6 @@ class HyperCuts(object):
                 # check condition
                 if cut_num > range_right - range_left or \
                     total_cuts * cut_num > self.spfac * math.sqrt(len(node.rules)) or \
-                    total_cuts * cut_num > self.max_cut or \
                     abs(last_mean - current_mean) < 0.1 * last_mean or \
                     abs(last_mean - current_mean) < 0.1 * last_mean or \
                     abs(last_empty - current_empty) > 5:
@@ -106,8 +104,6 @@ class HyperCuts(object):
                     "Depth:", tree.get_depth(),
                     "Remaining nodes:", len(tree.nodes_to_cut))
         return tree.compute_result()
-
-        #print(tree)
 
     def train(self):
         print(datetime.datetime.now(), "HyperCuts starts")

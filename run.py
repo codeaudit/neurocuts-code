@@ -24,5 +24,5 @@ def run_hypercuts():
 
 if __name__ == "__main__":
     #run_neurocuts()
-    run_hicuts()
+    #run_hicuts()
     run_hypercuts()
