@@ -354,6 +354,7 @@ class Tree:
         # region boundary: 16 bytes
         # each child pointer: 4 bytes
         # each rule pointer: 4 bytes
+        # each rule: 16 bytes
         result = {"bytes_per_rule": 0, "memory_access": 0}
         nodes = [self.root]
         while len(nodes) != 0:
@@ -373,7 +374,7 @@ class Tree:
                     result["memory_access"] = max(result["memory_access"],
                         node.depth + len(node.rules))
             nodes = next_layer_nodes
-        result["bytes_per_rule"] /= len(self.rules)
+        result["bytes_per_rule"] = result["bytes_per_rule"] / len(self.rules) + 16
         return result
 
     def print_layers(self, layer_num = 5):

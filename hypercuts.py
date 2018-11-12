@@ -83,9 +83,9 @@ class HyperCuts(object):
             if cut_nums[i] != 1]
         return (cut_dimensions, cut_nums)
 
-    def train(self):
-        print(datetime.datetime.now(), "HyperCuts starts")
-        tree = Tree(self.rules, self.leaf_threshold,
+    def train_rules(self, rules):
+
+        tree = Tree(rules, self.leaf_threshold,
             {"node_merging"     : True,
             "rule_overlay"      : True,
             "region_compaction" : True,
@@ -105,10 +105,34 @@ class HyperCuts(object):
                 print(datetime.datetime.now(),
                     "Depth:", tree.get_depth(),
                     "Remaining nodes:", len(tree.nodes_to_cut))
-        result = tree.compute_result()
-        print("%s Depth:%d Memory access:%d Bytes per rules: %f" %
+        return tree.compute_result()
+
+        #print(tree)
+
+    def train(self):
+        print(datetime.datetime.now(), "HyperCuts starts")
+
+        # divide rules into two sets
+        rules_wset = []
+        rules_rset = []
+        for rule in self.rules:
+            if rule.ranges[1] - rule.ranges[0] > 1 and \
+                    rule.ranges[3] - rule.ranges[2] > 1:
+                rules_wset.append(rule)
+            else:
+                rules_rset.append(rule)
+
+        # build a tree for each set
+        result_wset = self.train_rules(rules_wset)
+        result_rset = self.train_rules(rules_rset)
+        result = {}
+        result["memory_access"] = result_wset["memory_access"] + result_rset["memory_access"]
+        result["bytes_per_rule"] = \
+            (result_wset["bytes_per_rule"] * len(rules_wset) + \
+            result_rset["bytes_per_rule"] * len(rules_rset)) / \
+            len(self.rules)
+
+        print("%s Memory access:%d Bytes per rules: %f" %
             (datetime.datetime.now(),
-            tree.get_depth(),
             result["memory_access"],
             result["bytes_per_rule"]))
-        #print(tree)
