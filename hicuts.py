@@ -72,7 +72,7 @@ class HiCuts(object):
                     "Depth:", tree.get_depth(),
                     "Remaining nodes:", len(tree.nodes_to_cut))
         result = tree.compute_result()
-        print("%s Depth:%d Memory access:%d Bytes per rules: %f" %
+        print("%s Depth:%d Memory access:%d Bytes per rule: %f" %
             (datetime.datetime.now(),
             tree.get_depth(),
             result["memory_access"],

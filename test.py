@@ -4,6 +4,7 @@ from tree import *
 from neurocuts import *
 from hicuts import *
 from hypercuts import *
+from efficuts import *
 
 def test_tree():
     print("========== rule ==========")
@@ -173,9 +174,42 @@ def test_hypercuts():
     cuts.leaf_threshold = 1
     cuts.train()
 
+def test_efficuts():
+    print("========== efficuts ==========")
+    # test separate trees
+    rule0 = Rule([0, 2**32 * 0.05, 0, 2**32 * 0.05 - 1,
+        0, 2**16 * 0.5 - 1, 0, 2**16 * 0.5, 0, 2**8 * 0.5 - 1])
+    rule1 = Rule([0, 2**32 * 0.05, 0, 2**32 * 0.05 - 1,
+        0, 2**16 * 0.5 - 1, 0, 2**16 * 0.5, 0, 2**8 * 0.5])
+    rules = [rule0, rule1]
+    cuts = EffiCuts(rules)
+    rule_subsets = cuts.separate_rules(rules)
+    assert rule_subsets[18] == [rule0]
+    assert rule_subsets[19] == [rule1]
+
+    # test merge rule subsets
+    rule_subsets = [[] for i in range(32)]
+    rule_subsets[0] = [0]
+    rule_subsets[10] = [10]
+    rule_subsets[24] = [24]
+    rule_subsets[26] = [26]
+    rule_subsets[27] = [27]
+    rule_subsets[28] = [28]
+    rule_subsets[29] = [29]
+    rule_subsets[31] = [31]
+
+    rule_subsets = cuts.merge_rule_subsets(rule_subsets)
+    assert rule_subsets[0] == [26, 27]
+    assert rule_subsets[1] == [28, 29]
+    assert rule_subsets[2] == [0]
+    assert rule_subsets[3] == [10]
+    assert rule_subsets[4] == [24]
+    assert rule_subsets[5] == [31]
+
 if __name__ == "__main__":
     #test_tree()
-    test_refinements()
+    #test_refinements()
     #test_neurocuts()
     #test_hicuts()
     #test_hypercuts()
+    test_efficuts()

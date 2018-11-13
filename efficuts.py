@@ -1,13 +1,16 @@
-import math, sys
+import math
 import datetime
 
 from tree import *
 
-class HyperCuts(object):
+class EffiCuts(object):
     def __init__(self, rules):
         # hyperparameters
         self.leaf_threshold = 16    # number of rules in a leaf
         self.spfac = 4              # space estimation
+
+        self.largeness_fraction = 0.5       # decide if a large field
+        self.largeness_fraction_ip = 0.05   # decide if a large field for IP
 
         # set up
         self.rules = rules
@@ -105,28 +108,80 @@ class HyperCuts(object):
                     "Remaining nodes:", len(tree.nodes_to_cut))
         return tree.compute_result()
 
-    def train(self):
-        print(datetime.datetime.now(), "HyperCuts starts")
+    def separate_rules(self, rules):
+        rule_subsets = [[] for i in range(32)]
+        for rule in rules:
+            index = 0
+            for i in range(2):
+                if rule.ranges[i*2+1] - rule.ranges[i*2] >= \
+                        (2**32) * self.largeness_fraction_ip:
+                    index = (index << 1) + 1
+                else:
+                    index = index << 1
 
-        # divide rules into two sets
-        rules_wset = []
-        rules_rset = []
-        for rule in self.rules:
-            if rule.ranges[1] - rule.ranges[0] > 1 and \
-                    rule.ranges[3] - rule.ranges[2] > 1:
-                rules_wset.append(rule)
+            for i in range(2, 4):
+                if rule.ranges[i*2+1] - rule.ranges[i*2] >= \
+                        (2**16) * self.largeness_fraction:
+                    index = (index << 1) + 1
+                else:
+                    index = index << 1
+
+            if rule.ranges[9] - rule.ranges[8] >= \
+                    (2**8) * self.largeness_fraction:
+                index = (index << 1) + 1
             else:
-                rules_rset.append(rule)
+                index = index << 1
+            rule_subsets[index].append(rule)
+        return rule_subsets
 
-        # build a tree for each set
-        result_wset = self.build_tree(rules_wset)
-        result_rset = self.build_tree(rules_rset)
-        result = {}
-        result["memory_access"] = result_wset["memory_access"] + result_rset["memory_access"]
-        result["bytes_per_rule"] = \
-            (result_wset["bytes_per_rule"] * len(rules_wset) + \
-            result_rset["bytes_per_rule"] * len(rules_rset)) / \
-            len(self.rules)
+    def merge_rule_subsets(self, rule_subsets):
+        result_subsets = []
+
+        # first consider rule subsets with 3 large dimensions
+        for i in range(32):
+            if len(rule_subsets[i]) > 0 and bin(i).count("1") == 3:
+                candidate_index = []
+
+                # first consider rule subsets with 4 large dimensions
+                for j in range(32):
+                    # only consider rule subsets that differ in one dimension
+                    if len(rule_subsets[j]) > 0 and \
+                            bin(j).count("1") == 4 and \
+                            bin(i^j).count("1") == 1:
+                        candidate_index.append(j)
+
+                # then consider rule subsets with 2 large dimensions
+                if len(candidate_index) == 0:
+                    for j in range(32):
+                        # only consider rule subsets that differ in one dimension
+                        if len(rule_subsets[j]) > 0 and \
+                                bin(j).count("1") == 2 and \
+                                bin(i^j).count("1") == 1:
+                            candidate_index.append(j)
+
+                if len(candidate_index) > 0:
+                    j = min(candidate_index)
+                    result_subsets.append(rule_subsets[i] + rule_subsets[j])
+                    rule_subsets[i] = []
+                    rule_subsets[j] = []
+
+        # put all other rule subsets to the result
+        for rule_subset in rule_subsets:
+            if len(rule_subset) > 0:
+                result_subsets.append(rule_subset)
+
+        return result_subsets
+
+    def train(self):
+        rule_subsets = self.separate_rules(self.rules)
+        rule_subsets = self.merge_rule_subsets(rule_subsets)
+
+        result = {"memory_access": 0, "bytes_per_rule": 0}
+        for rule_subset in rule_subsets:
+            result_subset = self.build_tree(rule_subset)
+            result["memory_access"] += result_subset["memory_access"]
+            result["bytes_per_rule"] += result_subset["bytes_per_rule"] * len(rule_subset)
+        result["bytes_per_rule"] /= len(self.rules)
 
         print("%s Memory access:%d Bytes per rule: %f" %
             (datetime.datetime.now(),
