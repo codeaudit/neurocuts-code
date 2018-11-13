@@ -1,7 +1,16 @@
+import sys, os, time, subprocess, random
+
 from neurocuts import *
 from hicuts import *
 from hypercuts import *
 from efficuts import *
+
+def exe_cmd(cmd):
+    #print "\t", cmd
+    subprocess.call(cmd, shell=True)
+
+def sync():
+    exe_cmd("rsync -r * netx3:~/xinjin/neurocuts")
 
 def run_neurocuts():
     random.seed(1)
@@ -30,9 +39,19 @@ def run_efficuts():
         cuts = EffiCuts(rules)
         cuts.train()
 
-
 if __name__ == "__main__":
-    #run_neurocuts()
-    run_hicuts()
-    run_hypercuts()
-    run_efficuts()
+    if len(sys.argv) <= 1:
+        print("Usage")
+        print("  tool.py sync")
+        print("  tool.py expr")
+        sys.exit()
+
+    if sys.argv[1] == "sync":
+        sync()
+    elif sys.argv[1] == "expr":
+        #run_neurocuts()
+        run_hicuts()
+        run_hypercuts()
+        run_efficuts()
+    else:
+        print("Not supported option")
