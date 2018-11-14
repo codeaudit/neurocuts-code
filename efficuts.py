@@ -90,7 +90,8 @@ class EffiCuts(object):
             {"node_merging"     : True,
             "rule_overlay"      : True,
             "region_compaction" : True,
-            "rule_pushup"       : True})
+            "rule_pushup"       : False,
+            "equi_dense"        : False})
         node = tree.get_current_node()
         count = 0
         while not tree.is_finish():

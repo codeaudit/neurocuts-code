@@ -6,7 +6,7 @@ from hicuts import *
 from hypercuts import *
 from efficuts import *
 
-def test_tree():
+def test_tree_():
     print("========== rule ==========")
     rule = Rule([0, 10, 0, 10, 10, 20, 0, 1, 0, 1])
     print(rule)
@@ -62,6 +62,68 @@ def test_tree():
     rules = load_rules_from_file("classbench/acl1_20")
     for rule in rules:
         print(rule)
+
+    # check continuous region
+    node1 = Node(0, [0, 10, 0, 10, 10, 20, 10, 15, 0, 10], None, 1)
+    node2 = Node(0, [0, 10, 10, 20, 10, 20, 10, 15, 0, 10], None, 1)
+    node3 = Node(0, [10, 20, 20, 30, 10, 20, 10, 15, 0, 10], None, 1)
+    node4 = Node(0, [20, 30, 20, 30, 10, 20, 10, 15, 0, 10], None, 1)
+    assert tree.check_contiguous_region(node1, node2)
+    assert not tree.check_contiguous_region(node2, node3)
+    assert tree.check_contiguous_region(node3, node4)
+
+def test_tree():
+    tree = Tree([], 1)
+
+    # check continuous region
+    node0 = Node(0, [0, 10, 0, 10, 10, 20, 10, 15, 0, 10], None, 1)
+    node1 = Node(0, [0, 10, 10, 20, 10, 20, 10, 15, 0, 10], None, 1)
+    node2 = Node(0, [10, 20, 20, 30, 10, 20, 10, 15, 0, 10], None, 1)
+    node3 = Node(0, [20, 30, 20, 30, 10, 20, 10, 15, 0, 10], None, 1)
+    assert tree.check_contiguous_region(node0, node1)
+    assert not tree.check_contiguous_region(node1, node2)
+    assert tree.check_contiguous_region(node2, node3)
+
+    # refinement equi dense
+    rule0 = Rule(0, [0, 10, 0, 10, 10, 20, 0, 1, 0, 1])
+    rule1 = Rule(1, [0, 10, 0, 10, 10, 20, 0, 1, 0, 2])
+    rule2 = Rule(2, [0, 10, 0, 10, 10, 20, 0, 1, 0, 3])
+    rule3 = Rule(3, [0, 10, 0, 10, 10, 20, 0, 1, 0, 4])
+    node0 = Node(0, [0, 10, 0, 10, 10, 20, 0, 1, 0, 1], [rule0], 1)
+    node1 = Node(1, [0, 10, 10, 20, 10, 20, 0, 1, 0, 1], [rule0, rule1], 1)
+    node2 = Node(2, [10, 20, 0, 10, 10, 20, 0, 1, 0, 1], [rule1], 1)
+    node3 = Node(3, [10, 20, 10, 20, 10, 20, 0, 1, 0, 1], [rule2], 1)
+    node4 = Node(4, [20, 30, 20, 30, 10, 20, 0, 1, 0, 1], [rule0, rule1, rule2], 1)
+    nodes = [node0, node1, node2, node3, node4]
+    nodes = tree.refinement_equi_dense(nodes)
+    assert len(nodes) == 4
+    assert nodes[0].id == node0.id
+    assert nodes[0].ranges == [0, 10, 0, 20, 10, 20, 0, 1, 0, 1]
+    assert nodes[0].rules == [rule0, rule1]
+    assert nodes[0].depth == node0.depth
+    assert nodes[1].id == node2.id
+    assert nodes[1].ranges == node2.ranges
+    assert nodes[1].rules == node2.rules
+    assert nodes[1].depth == node2.depth
+    assert nodes[2].id == node3.id
+    assert nodes[3].id == node4.id
+
+    node0 = Node(0, [0, 10, 0, 10, 10, 20, 0, 1, 0, 1], [rule0], 1)
+    node1 = Node(1, [0, 10, 10, 20, 10, 20, 0, 1, 0, 1], [rule0, rule1], 1)
+    node2 = Node(2, [10, 20, 0, 10, 10, 20, 0, 1, 0, 1], [rule0], 1)
+    node3 = Node(3, [10, 20, 10, 20, 10, 20, 0, 1, 0, 1], [rule0, rule1], 1)
+    node4 = Node(4, [20, 30, 20, 30, 10, 20, 0, 1, 0, 1], [rule0, rule1, rule2], 1)
+    nodes = [node0, node1, node2, node3, node4]
+    nodes = tree.refinement_equi_dense(nodes)
+    assert len(nodes) == 2
+    assert nodes[0].id == node0.id
+    assert nodes[0].ranges == [0, 20, 0, 20, 10, 20, 0, 1, 0, 1]
+    assert nodes[0].rules == [rule0, rule1]
+    assert nodes[0].depth == node0.depth
+    assert nodes[1].id == node4.id
+    assert nodes[1].ranges == node4.ranges
+    assert nodes[1].rules == node4.rules
+    assert nodes[1].depth == node4.depth
 
 def test_refinements():
     rules = []
@@ -206,10 +268,11 @@ def test_efficuts():
     assert rule_subsets[4] == [24]
     assert rule_subsets[5] == [31]
 
+
 if __name__ == "__main__":
-    #test_tree()
+    test_tree()
     #test_refinements()
     #test_neurocuts()
     #test_hicuts()
     #test_hypercuts()
-    test_efficuts()
+    #test_efficuts()

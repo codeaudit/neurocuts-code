@@ -4,8 +4,9 @@ import re
 import torch
 
 class Rule:
-    def __init__(self, ranges):
+    def __init__(self, priority, ranges):
         # each range is left inclusive and right exclusive, i.e., [left, right)
+        self.priority = priority
         self.ranges = ranges
         self.names = ["src_ip", "dst_ip", "src_port", "dst_port", "proto"]
 
@@ -70,7 +71,7 @@ def load_rules_from_file(file_name):
             proto_begin = 0
             proto_end = 0xff
 
-        rules.append(Rule([sip_begin, sip_end+1,
+        rules.append(Rule(idx, [sip_begin, sip_end+1,
             dip_begin, dip_end+1,
             sport_begin, sport_end+1,
             dport_begin, dport_end+1,
@@ -124,13 +125,16 @@ class Tree:
             "node_merging"      : False,
             "rule_overlay"      : False,
             "region_compaction" : False,
-            "rule_pushup"       : False}):
+            "rule_pushup"       : False,
+            "equi_dense"        : False}):
         # hyperparameters
         self.leaf_threshold = leaf_threshold
         self.refinements = refinements
 
         self.rules = rules
         self.root = self.create_node(0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1)
+        if (self.refinements["region_compaction"]):
+            self.refinement_region_compaction(self.root)
         self.current_node = self.root
         self.nodes_to_cut = [self.root]
         self.depth = 1
@@ -142,8 +146,6 @@ class Tree:
         if self.refinements["rule_overlay"]:
             self.refinement_rule_overlay(node)
 
-        if (self.refinements["region_compaction"]):
-            self.refinement_region_compaction(node)
         return node
 
     def get_depth(self):
@@ -160,13 +162,27 @@ class Tree:
 
     def update_tree(self, node, children):
         if self.refinements["node_merging"]:
-            merged_children = [children[0]]
-            last_child = children[0]
-            for i in range(1, len(children)):
-                if not self.refinement_node_merging(last_child, children[i]):
-                    merged_children.append(children[i])
-                    last_child = children[i]
-            children = merged_children
+            while True:
+                flag = True
+                merged_children = [children[0]]
+                last_child = children[0]
+                for i in range(1, len(children)):
+                    if not self.refinement_node_merging(last_child, children[i]):
+                        merged_children.append(children[i])
+                        last_child = children[i]
+                    else:
+                        flag = False
+                children = merged_children
+
+                if flag:
+                    break
+
+        if self.refinements["equi_dense"]:
+            children = self.refinement_equi_dense(node, children)
+
+        if (self.refinements["region_compaction"]):
+            for child in children:
+                self.refinement_region_compaction(child)
 
         node.children.extend(children)
         children.reverse()
@@ -196,7 +212,7 @@ class Tree:
                     child_ranges[cut_dimension*2+1]):
                     child_rules.append(rule)
 
-            child = Node(self.node_count, child_ranges, child_rules, node.depth + 1)
+            child = self.create_node(self.node_count, child_ranges, child_rules, node.depth + 1)
             children.append(child)
             self.node_count += 1
 
@@ -264,8 +280,7 @@ class Tree:
             self.current_node = None
         return self.current_node
 
-    def refinement_node_merging(self, node1, node2):
-        # check region
+    def check_contiguous_region(self, node1, node2):
         count = 0
         for i in range(5):
             if node1.ranges[i*2+1] == node2.ranges[i*2] or \
@@ -278,6 +293,17 @@ class Tree:
                     node1.ranges[i*2+1] != node2.ranges[i*2+1]:
                 return False
         if count == 0:
+            return False
+        return True
+
+    def merge_region(self, node1, node2):
+        for i in range(5):
+            node1.ranges[i*2] = min(node1.ranges[i*2], node2.ranges[i*2])
+            node1.ranges[i*2+1] = max(node1.ranges[i*2+1], node2.ranges[i*2+1])
+
+    def refinement_node_merging(self, node1, node2):
+        # check region
+        if not self.check_contiguous_region(node1, node2):
             return False
 
         # check rules
@@ -344,6 +370,43 @@ class Tree:
                         node.pushup_rules = node.pushup_rules.intersection(node.children[j].pushup_rules)
                     for child in node.children:
                         child.pushup_rules = child.pushup_rules.difference(node.pushup_rules)
+
+    def refinement_equi_dense(self, nodes):
+        # try to merge
+        nodes_copy = []
+        max_rule_count = -1
+        for node in nodes:
+            nodes_copy.append(
+                Node(node.id, node.ranges.copy(),
+                    node.rules.copy(), node.depth))
+            max_rule_count = max(max_rule_count, len(node.rules))
+        while True:
+            flag = True
+            merged_nodes = [nodes_copy[0]]
+            last_node = nodes_copy[0]
+            for i in range(1, len(nodes_copy)):
+                if self.check_contiguous_region(last_node, nodes_copy[i]):
+                    rules = set(last_node.rules).union(set(nodes_copy[i].rules))
+                    if len(rules) < len(last_node.rules) + len(nodes_copy[i].rules) and \
+                        len(rules) < max_rule_count:
+                        rules = list(rules)
+                        rules.sort(key=lambda i: i.priority)
+                        last_node.rules =rules
+                        self.merge_region(last_node, nodes_copy[i])
+                        flag = False
+                        continue
+
+                merged_nodes.append(nodes_copy[i])
+                last_node = nodes_copy[i]
+
+            nodes_copy = merged_nodes
+            if flag:
+                break
+
+        # check condition
+        if len(nodes_copy) <= 8:
+            nodes = nodes_copy
+        return nodes
 
     def compute_result(self):
         if self.refinements["rule_pushup"]:

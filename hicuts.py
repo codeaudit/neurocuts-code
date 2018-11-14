@@ -55,7 +55,8 @@ class HiCuts(object):
             {"node_merging"     : True,
             "rule_overlay"      : True,
             "region_compaction" : False,
-            "rule_pushup"       : False})
+            "rule_pushup"       : False,
+            "equi_dense"        : False})
         node = tree.get_current_node()
         count = 0
         while not tree.is_finish():
