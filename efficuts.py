@@ -87,11 +87,11 @@ class EffiCuts(object):
     def build_tree(self, rules):
 
         tree = Tree(rules, self.leaf_threshold,
-            {"node_merging"     : True,
+            {"node_merging"     : False,
             "rule_overlay"      : True,
             "region_compaction" : True,
             "rule_pushup"       : False,
-            "equi_dense"        : False})
+            "equi_dense"        : True})
         node = tree.get_current_node()
         count = 0
         while not tree.is_finish():
@@ -107,7 +107,7 @@ class EffiCuts(object):
                 print(datetime.datetime.now(),
                     "Depth:", tree.get_depth(),
                     "Remaining nodes:", len(tree.nodes_to_cut))
-        return tree.compute_result()
+        return tree.compute_result(is_efficuts = True)
 
     def separate_rules(self, rules):
         rule_subsets = [[] for i in range(32)]
@@ -174,6 +174,7 @@ class EffiCuts(object):
         return result_subsets
 
     def train(self):
+        print(datetime.datetime.now(), "EffiCuts starts")
         rule_subsets = self.separate_rules(self.rules)
         rule_subsets = self.merge_rule_subsets(rule_subsets)
 

@@ -162,23 +162,10 @@ class Tree:
 
     def update_tree(self, node, children):
         if self.refinements["node_merging"]:
-            while True:
-                flag = True
-                merged_children = [children[0]]
-                last_child = children[0]
-                for i in range(1, len(children)):
-                    if not self.refinement_node_merging(last_child, children[i]):
-                        merged_children.append(children[i])
-                        last_child = children[i]
-                    else:
-                        flag = False
-                children = merged_children
-
-                if flag:
-                    break
+            children = self.refinement_node_merging(children)
 
         if self.refinements["equi_dense"]:
-            children = self.refinement_equi_dense(node, children)
+            children = self.refinement_equi_dense(children)
 
         if (self.refinements["region_compaction"]):
             for child in children:
@@ -301,19 +288,26 @@ class Tree:
             node1.ranges[i*2] = min(node1.ranges[i*2], node2.ranges[i*2])
             node1.ranges[i*2+1] = max(node1.ranges[i*2+1], node2.ranges[i*2+1])
 
-    def refinement_node_merging(self, node1, node2):
-        # check region
-        if not self.check_contiguous_region(node1, node2):
-            return False
+    def refinement_node_merging(self, nodes):
+        while True:
+            flag = True
+            merged_nodes = [nodes[0]]
+            last_node = nodes[0]
+            for i in range(1, len(nodes)):
+                if self.check_contiguous_region(last_node, nodes[i]):
+                    if set(last_node.rules) == set(nodes[i].rules):
+                        self.merge_region(last_node, nodes[i])
+                        flag = False
+                        continue
 
-        # check rules
-        if set(node1.rules) == set(node2.rules):
-            for i in range(5):
-                node1.ranges[i*2] = min(node1.ranges[i*2], node2.ranges[i*2])
-                node1.ranges[i*2+1] = max(node1.ranges[i*2+1], node2.ranges[i*2+1])
-            return True
-        else:
-            return False
+                merged_nodes.append(nodes[i])
+                last_node = nodes[i]
+
+            nodes = merged_nodes
+            if flag:
+                break
+
+        return nodes
 
     def refinement_rule_overlay(self, node):
         if len(node.rules) == 0 or len(node.rules) > 10000:
@@ -408,7 +402,7 @@ class Tree:
             nodes = nodes_copy
         return nodes
 
-    def compute_result(self):
+    def compute_result(self, is_efficuts = False):
         if self.refinements["rule_pushup"]:
             self.refinement_rule_pushup()
 
@@ -436,12 +430,22 @@ class Tree:
                 elif self.is_leaf(node):
                     result["bytes_per_rule"] += len(node.rules) * 4
 
+                    if is_efficuts:
+                        result["bytes_per_rule"] += len(node.rules) * 16
+
                 # compute memory access
                 if self.is_leaf(node):
-                    result["memory_access"] = max(result["memory_access"],
-                        node.depth + len(node.rules))
+                    if is_efficuts:
+                        result["memory_access"] = max(result["memory_access"],
+                            node.depth)
+                    else:
+                        result["memory_access"] = max(result["memory_access"],
+                            (node.depth - 1)*2 + 1 + len(node.rules))
+
             nodes = next_layer_nodes
         result["bytes_per_rule"] = result["bytes_per_rule"] / len(self.rules) + 16
+        if is_efficuts:
+            result["bytes_per_rule"] -= 16
         return result
 
     def print_layers(self, layer_num = 5):
