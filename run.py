@@ -4,6 +4,7 @@ from neurocuts import *
 from hicuts import *
 from hypercuts import *
 from efficuts import *
+from cutsplit import *
 
 def exe_cmd(cmd):
     #print "\t", cmd
@@ -39,6 +40,13 @@ def run_efficuts():
         cuts = EffiCuts(rules)
         cuts.train()
 
+def run_cutsplit():
+    for i in ["100"]:
+        print(i)
+        rules = load_rules_from_file("classbench/acl1_%s" % i)
+        cuts = CutSplit(rules)
+        cuts.train()
+
 if __name__ == "__main__":
     if len(sys.argv) <= 1:
         print("Usage")
@@ -50,8 +58,9 @@ if __name__ == "__main__":
         sync()
     elif sys.argv[1] == "expr":
         #run_neurocuts()
-        run_hicuts()
-        run_hypercuts()
+        #run_hicuts()
+        #run_hypercuts()
         run_efficuts()
+        run_cutsplit()
     else:
         print("Not supported option")

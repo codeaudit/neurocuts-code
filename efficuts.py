@@ -171,6 +171,9 @@ class EffiCuts(object):
             if len(rule_subset) > 0:
                 result_subsets.append(rule_subset)
 
+            # sort rules by priority
+            rule_subset.sort(key=lambda i: i.priority)
+
         return result_subsets
 
     def train(self):

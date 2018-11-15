@@ -5,6 +5,7 @@ from neurocuts import *
 from hicuts import *
 from hypercuts import *
 from efficuts import *
+from cutsplit import *
 
 def test_tree_():
     print("========== rule ==========")
@@ -238,7 +239,8 @@ def test_hypercuts():
 
 def test_efficuts():
     print("========== efficuts ==========")
-    # test separate trees
+
+    # test separate rules
     rule0 = Rule([0, 2**32 * 0.05, 0, 2**32 * 0.05 - 1,
         0, 2**16 * 0.5 - 1, 0, 2**16 * 0.5, 0, 2**8 * 0.5 - 1])
     rule1 = Rule([0, 2**32 * 0.05, 0, 2**32 * 0.05 - 1,
@@ -268,11 +270,39 @@ def test_efficuts():
     assert rule_subsets[4] == [24]
     assert rule_subsets[5] == [31]
 
+def test_cutsplit():
+    print("========== cutsplit ==========")
+
+    # test separate rules
+    rule0 = Rule(0, [0, 2**12, 0, 2**12, 0, 1, 0, 1, 0, 1])
+    rule1 = Rule(1, [2**8, 2**24, 0, 2**25, 0, 1, 0, 1, 0, 1])
+    rule2 = Rule(2, [0, 2**25, 2**20, 2**24, 0, 1, 0, 1, 0, 1])
+    rule3 = Rule(3, [0, 2**32, 0, 2**32, 0, 1, 0, 1, 0, 1])
+    cuts = CutSplit(None)
+    cuts.leaf_threshold = 0
+    rule_subsets = cuts.separate_rules([rule0, rule1, rule2, rule3])
+    assert rule_subsets[0] == [rule0]
+    assert rule_subsets[1] == [rule1]
+    assert rule_subsets[2] == [rule2, rule3]
+
+    cuts.leaf_threshold = 1
+    rule_subsets = cuts.separate_rules([rule0, rule1, rule2, rule3])
+    assert rule_subsets[0] == []
+    assert rule_subsets[1] == [rule1, rule3]
+    assert rule_subsets[2] == [rule0, rule2]
+
+    rule2 = Rule(2, [0, 2**25, 2**8, 2**24, 0, 1, 0, 1, 0, 1])
+    cuts.leaf_threshold = 0
+    rule_subsets = cuts.separate_rules([rule0, rule1, rule2, rule3])
+    assert rule_subsets[0] == [rule0]
+    assert rule_subsets[1] == [rule1, rule3]
+    assert rule_subsets[2] == [rule2]
 
 if __name__ == "__main__":
-    test_tree()
+    #test_tree()
     #test_refinements()
     #test_neurocuts()
     #test_hicuts()
     #test_hypercuts()
     #test_efficuts()
+    test_cutsplit()
