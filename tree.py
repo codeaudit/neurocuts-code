@@ -203,6 +203,16 @@ class Tree:
             children.append(child)
             self.node_count += 1
 
+        n_child_rules = sum([len(c.rules) for c in children])
+        if n_child_rules < len(node.rules):
+            print("*** ERROR ***")
+            print("Num child", n_child_rules)
+            print("Num at node", len(node.rules))
+            for c in children:
+                print(len(child.rules))
+                print(child)
+            exit(0)
+
         self.update_tree(node, children)
         return children
 
