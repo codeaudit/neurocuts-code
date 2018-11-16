@@ -8,7 +8,11 @@ from ray.tune import *
 def run_neurocuts(config, reporter):
     random.seed(1)
     rules = load_rules_from_file(config["rules"])
-    neuro_cuts = NeuroCuts(rules, gamma=config["gamma"], reporter=reporter)
+    neuro_cuts = NeuroCuts(
+        rules,
+        gamma=config["gamma"],
+        reporter=reporter,
+        onehot_state=config["onehot_state"])
     neuro_cuts.train()
 
 
@@ -24,6 +28,7 @@ if __name__ == "__main__":
                     os.path.abspath("classbench/acl1_100K"),
                 ]),
                 "gamma": grid_search([0.99, 1.0]),
+                "onehot_state": grid_search([False, True]),
             },
         },
     })
