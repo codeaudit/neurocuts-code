@@ -36,9 +36,9 @@ class ReplayMemory(object):
 class CutsNet(nn.Module):
     def __init__(self, action_size):
         super(CutsNet, self).__init__()
-        self.fc1 = nn.Linear(208, 128)
-        self.fc2 = nn.Linear(128, 128)
-        self.fc3 = nn.Linear(128, action_size)
+        self.fc1 = nn.Linear(208, 50)
+        self.fc2 = nn.Linear(50, 50)
+        self.fc3 = nn.Linear(50, action_size)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -47,20 +47,21 @@ class CutsNet(nn.Module):
         return x
 
 class NeuroCuts(object):
-    def __init__(self, rules):
+    def __init__(self, rules, gamma=0.99, reporter=None):
         # hyperparameters
-        self.N = 10000                   # maximum number of episodes
+        self.N = 1000                   # maximum number of episodes
         self.t_train = 10               # training interval
         self.C = 3                      # target model copy interval
-        self.gamma = 1.00               # reward discount factor
+        self.gamma = gamma              # reward discount factor
         self.epsilon_start = 1.0        # exploration start rate
         self.epsilon_end = 0.1          # exploration end rate
         self.alpha = 0.1                # learning rate
-        self.batch_size = 256            # batch size
+        self.batch_size = 64            # batch size
         self.replay_memory_size = 100000 # replay memory size
         self.cuts_per_dimension = 5     # cuts per dimension
         self.action_size = 5 * self.cuts_per_dimension  # action size
         self.leaf_threshold = 16        # number of rules in a leaf
+        self.reporter = reporter
 
         # set up
         self.replay_memory = ReplayMemory(self.replay_memory_size)
@@ -75,6 +76,7 @@ class NeuroCuts(object):
         self.target_net.eval()
 
         self.rules = rules
+        self.test = False
 
     def select_action(self, state, n):
         """
@@ -84,6 +86,8 @@ class NeuroCuts(object):
                                 self.epsilon_end + \
                                     (self.epsilon_start - self.epsilon_end) * \
                                     math.exp(-1. * n / self.N * 2))
+        if self.test:
+            epsilon_threshold = 0.0
         if random.random() > epsilon_threshold:
             with torch.no_grad():
                 return self.policy_net(state).max(1)[1].view(1, 1)
@@ -138,7 +142,11 @@ class NeuroCuts(object):
     def train(self):
         min_tree = None
         n = 0
-        while n < self.N:
+        while True:
+            if n % 20 == 0:
+                self.test = True
+            else:
+                self.test = False
             # build a new tree
             tree = Tree(self.rules, self.leaf_threshold)
             node = tree.get_current_node()
@@ -169,14 +177,21 @@ class NeuroCuts(object):
                 t += 1
 
             # store the tree with min depth
-            if min_tree is None or tree.get_depth() < min_tree.get_depth():
-                min_tree = tree
+            if min_tree is None or not self.test:
+                if min_tree is None or tree.get_depth() < min_tree.get_depth():
+                    min_tree = tree
 
-            if n % 20 == 0:
+            if self.test:
+                if self.reporter:
+                    self.reporter(
+                        timesteps_total=n,
+                        test_depth=tree.get_depth(),
+                        train_depth=min_tree.get_depth())
                 print(datetime.datetime.now(),
                     "Episode:", n,
                     "Batch:", self.batch_count,
-                    "Depth:", min_tree.get_depth())
+                    "Test Depth:", tree.get_depth(),
+                    "Train Depth:", min_tree.get_depth())
                 #if min_tree.get_depth() < 15:
                 #    print(min_tree)
 
