@@ -86,32 +86,45 @@ def to_bits(value, n):
 
 
 class Node:
-    def __init__(self, id, ranges, rules, depth):
+    def __init__(self, id, ranges, rules, depth, onehot_state):
         self.id = id
         self.ranges = ranges
         self.rules = rules
         self.depth = depth
         self.children = []
-        self.compute_state()
+        self.compute_state(onehot_state)
         self.action = None
         self.pushup_rules = None
 
-    def compute_state(self):
-        self.state = []
-        self.state.extend(to_bits(self.ranges[0], 32))
-        self.state.extend(to_bits(self.ranges[1] - 1, 32))
-        self.state.extend(to_bits(self.ranges[2], 32))
-        self.state.extend(to_bits(self.ranges[3] - 1, 32))
-        assert len(self.state) == 128, len(self.state)
-        self.state.extend(to_bits(self.ranges[4], 16))
-        self.state.extend(to_bits(self.ranges[5] - 1, 16))
-        self.state.extend(to_bits(self.ranges[6], 16))
-        self.state.extend(to_bits(self.ranges[7] - 1, 16))
-        assert len(self.state) == 192, len(self.state)
-        self.state.extend(to_bits(self.ranges[8], 8))
-        self.state.extend(to_bits(self.ranges[9] - 1, 8))
-        assert len(self.state) == 208, len(self.state)
-        self.state = torch.tensor([self.state])
+    def compute_state(self, onehot):
+        if onehot:
+            self.state = []
+            self.state.extend(to_bits(self.ranges[0], 32))
+            self.state.extend(to_bits(self.ranges[1] - 1, 32))
+            self.state.extend(to_bits(self.ranges[2], 32))
+            self.state.extend(to_bits(self.ranges[3] - 1, 32))
+            assert len(self.state) == 128, len(self.state)
+            self.state.extend(to_bits(self.ranges[4], 16))
+            self.state.extend(to_bits(self.ranges[5] - 1, 16))
+            self.state.extend(to_bits(self.ranges[6], 16))
+            self.state.extend(to_bits(self.ranges[7] - 1, 16))
+            assert len(self.state) == 192, len(self.state)
+            self.state.extend(to_bits(self.ranges[8], 8))
+            self.state.extend(to_bits(self.ranges[9] - 1, 8))
+            assert len(self.state) == 208, len(self.state)
+            self.state = torch.tensor([self.state])
+        else:
+            self.state = []
+            for i in range(4):
+                for j in range(4):
+                    self.state.append(((self.ranges[i] - i % 2)  >> (j * 8)) & 0xff)
+            for i in range(4):
+                for j in range(2):
+                    self.state.append(((self.ranges[i+4] - i % 2) >> (j * 8)) & 0xff)
+            self.state.append(self.ranges[8])
+            self.state.append(self.ranges[9] - 1)
+            self.state = [[i / 256 for i in self.state]]
+            self.state = torch.tensor(self.state)
 
     def get_state(self):
         return self.state
@@ -137,10 +150,12 @@ class Tree:
             "rule_overlay"      : False,
             "region_compaction" : False,
             "rule_pushup"       : False,
-            "equi_dense"        : False}):
+            "equi_dense"        : False},
+        onehot_state = False):
         # hyperparameters
         self.leaf_threshold = leaf_threshold
         self.refinements = refinements
+        self.onehot_state = onehot_state
 
         self.rules = rules
         self.root = self.create_node(0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1)
@@ -152,7 +167,7 @@ class Tree:
         self.node_count = 1
 
     def create_node(self, id, ranges, rules, depth):
-        node = Node(id, ranges, rules, depth)
+        node = Node(id, ranges, rules, depth, self.onehot_state)
 
         if self.refinements["rule_overlay"]:
             self.refinement_rule_overlay(node)
@@ -393,7 +408,7 @@ class Tree:
         for node in nodes:
             nodes_copy.append(
                 Node(node.id, node.ranges.copy(),
-                    node.rules.copy(), node.depth))
+                    node.rules.copy(), node.depth, self.onehot_state))
             max_rule_count = max(max_rule_count, len(node.rules))
         while True:
             flag = True

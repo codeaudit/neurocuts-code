@@ -34,9 +34,9 @@ class ReplayMemory(object):
         return len(self.memory)
 
 class CutsNet(nn.Module):
-    def __init__(self, action_size):
+    def __init__(self, action_size, onehot_state):
         super(CutsNet, self).__init__()
-        self.fc1 = nn.Linear(208, 50)
+        self.fc1 = nn.Linear(208 if onehot_state else 26, 50)
         self.fc2 = nn.Linear(50, 50)
         self.fc3 = nn.Linear(50, action_size)
 
@@ -47,7 +47,7 @@ class CutsNet(nn.Module):
         return x
 
 class NeuroCuts(object):
-    def __init__(self, rules, gamma=0.99, reporter=None):
+    def __init__(self, rules, gamma=0.99, onehot_state=True, reporter=None):
         # hyperparameters
         self.N = 1000                   # maximum number of episodes
         self.t_train = 10               # training interval
@@ -57,6 +57,7 @@ class NeuroCuts(object):
         self.epsilon_end = 0.1          # exploration end rate
         self.alpha = 0.1                # learning rate
         self.batch_size = 64            # batch size
+        self.onehot_state = onehot_state  # expand node state to individual bits
         self.replay_memory_size = 100000 # replay memory size
         self.cuts_per_dimension = 5     # cuts per dimension
         self.action_size = 5 * self.cuts_per_dimension  # action size
@@ -66,7 +67,7 @@ class NeuroCuts(object):
         # set up
         self.replay_memory = ReplayMemory(self.replay_memory_size)
 
-        self.policy_net = CutsNet(self.action_size)
+        self.policy_net = CutsNet(self.action_size, onehot_state)
         self.optimizer = optim.RMSprop(self.policy_net.parameters())
         self.batch_count = 0
         self.criterion = nn.MSELoss()
@@ -148,7 +149,7 @@ class NeuroCuts(object):
             else:
                 self.test = False
             # build a new tree
-            tree = Tree(self.rules, self.leaf_threshold)
+            tree = Tree(self.rules, self.leaf_threshold, onehot_state=self.onehot_state)
             node = tree.get_current_node()
             t = 0
             while not tree.is_finish():
