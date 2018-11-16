@@ -41,7 +41,7 @@ def run_efficuts():
         cuts.train()
 
 def run_cutsplit():
-    for i in ["100"]:
+    for i in ["100", "500", "1000"]:
         print(i)
         rules = load_rules_from_file("classbench/acl1_%s" % i)
         cuts = CutSplit(rules)

@@ -8,7 +8,8 @@ class CutSplit(object):
         # hyperparameters
         self.leaf_threshold = 16    # number of rules in a leaf
         self.spfac = 4              # space estimation
-        self.ip_threshold = 2**24      # t_sada
+        self.ip_threshold = 2**24   # threshold for big ip address
+        self.ficut_threshold = 16   # threshold to switch to hypersplit
 
         # set up
         self.rules = rules
@@ -89,7 +90,7 @@ class CutSplit(object):
 
         return rule_subsets[0:3]
 
-    def select_action(self, tree, node):
+    def select_action_hypersplit(self, tree, node):
         # select a dimension
         cut_dimension = -1
         cut_position = -1
@@ -150,7 +151,10 @@ class CutSplit(object):
 
         return (cut_dimension, cut_position)
 
-    def build_tree(self, rules, cut_algorithm):
+    def select_action_ficut(self, tree, node, cut_dimension):
+        return (cut_dimension, 1)
+
+    def build_tree(self, rules, cut_algorithm, cut_dimension):
 
         tree = Tree(rules, self.leaf_threshold,
             {"node_merging"     : False,
@@ -165,15 +169,25 @@ class CutSplit(object):
                 node = tree.get_next_node()
                 continue
 
-            cut_dimension, cut_position = self.select_action(tree, node)
-            tree.cut_current_node_split(cut_dimension, cut_position)
-            node = tree.get_current_node()
+            if cut_algorithm == "ficut":
+                cut_dimension, cut_num = self.select_action_ficut(tree, node, cut_dimension)
+                # switch to hypersplit if the cut num is small
+                if cut_num < self.threshold:
+                    cut_algorithm = "hypersplit"
+                else:
+                    tree.cut_current_node(cut_dimension, cut_num)
+                    node = tree.get_current_node()
+            else:
+                cut_dimension, cut_position = self.select_action_hypersplit(tree, node)
+                tree.cut_current_node_split(cut_dimension, cut_position)
+                node = tree.get_current_node()
+
             count += 1
             if count % 10000 == 0:
                 print(datetime.datetime.now(),
                     "Depth:", tree.get_depth(),
                     "Remaining nodes:", len(tree.nodes_to_cut))
-        return tree.compute_result(is_efficuts = True)
+        return tree.compute_result()
 
     def train(self):
         print(datetime.datetime.now(), "CutSplit starts")
@@ -181,8 +195,12 @@ class CutSplit(object):
 
         result = {"memory_access": 0, "bytes_per_rule": 0}
         for i, rule_subset in enumerate(rule_subsets):
-            cut_algorithm = "hicuts" if i == 0 else "hypersplits"
-            result_subset = self.build_tree(rule_subset, cut_algorithm)
+            if len(rule_subset) == 0:
+                continue
+
+            cut_algorithm = "ficut" if i == 0 else "hypersplit"
+            cut_dimension = 0 if i == 1 else 1
+            result_subset = self.build_tree(rule_subset, cut_algorithm, cut_dimension)
             result["memory_access"] += result_subset["memory_access"]
             result["bytes_per_rule"] += result_subset["bytes_per_rule"] * len(rule_subset)
         result["bytes_per_rule"] /= len(self.rules)
