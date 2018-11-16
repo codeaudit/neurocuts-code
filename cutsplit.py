@@ -172,7 +172,7 @@ class CutSplit(object):
             if cut_algorithm == "ficut":
                 cut_dimension, cut_num = self.select_action_ficut(tree, node, cut_dimension)
                 # switch to hypersplit if the cut num is small
-                if cut_num < self.threshold:
+                if cut_num < self.ficut_threshold:
                     cut_algorithm = "hypersplit"
                 else:
                     tree.cut_current_node(cut_dimension, cut_num)
