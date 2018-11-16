@@ -259,6 +259,10 @@ class Tree:
         self.update_tree(node, children)
         return children
 
+    def cut_current_node_split(self, cut_dimension, cut_position):
+        print("Not implemented")
+        return
+
     def get_next_node(self):
         self.nodes_to_cut.pop()
         if len(self.nodes_to_cut) > 0:

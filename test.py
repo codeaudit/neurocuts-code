@@ -298,6 +298,16 @@ def test_cutsplit():
     assert rule_subsets[1] == [rule1, rule3]
     assert rule_subsets[2] == [rule2]
 
+    # test select action
+    rule0 = Rule(0, [0, 2**12, 0, 2**12+1, 0, 1, 0, 1, 0, 1])
+    rule1 = Rule(1, [2**8, 2**24, 2**12, 2**25, 0, 1, 0, 1, 0, 1])
+    rule2 = Rule(2, [0, 2**25, 2**20, 2**24, 0, 1, 0, 1, 0, 1])
+    rule3 = Rule(3, [0, 2**32, 0, 2**32, 0, 1, 0, 1, 0, 1])
+    node = Node(0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8],
+        [rule0, rule1, rule2, rule3], 1)
+    cut_dimension, cut_position = cuts.select_action(None, node)
+    assert cut_dimension == 1 and cut_position == 1048576
+
 if __name__ == "__main__":
     #test_tree()
     #test_refinements()

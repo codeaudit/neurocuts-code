@@ -89,11 +89,105 @@ class CutSplit(object):
 
         return rule_subsets[0:3]
 
-    def merge_rule_subsets(self, rule_subsets):
-        return None
+    def select_action(self, tree, node):
+        # select a dimension
+        cut_dimension = -1
+        cut_position = -1
+        min_average = len(node.rules) * 2
+        for i in range(5):
+            # get distinct points
+            left_points = set()
+            right_points = set()
+            all_points = set()
+            for rule in node.rules:
+                left = max(rule.ranges[i*2], node.ranges[i*2])
+                right = min(rule.ranges[i*2+1], node.ranges[i*2+1]) - 1
+                left_points.add(left)
+                right_points.add(right)
+                all_points.add(left)
+                all_points.add(right)
+
+            # expand distinct points to regions
+            all_points = list(all_points)
+            all_points.sort()
+            region_points = []
+            for point in all_points:
+                if point in left_points:
+                    region_points.append((point, 0))
+                if point in right_points:
+                    region_points.append((point, 1))
+
+            if len(region_points) >= 3:
+                # compute average rules in each region
+                covered_rule_num = [0 for j in range(len(region_points) -  1)]
+                for j in range(len(region_points) - 1):
+                    for rule in node.rules:
+                        if rule.ranges[i*2] <= region_points[j][0] and \
+                                rule.ranges[i*2+1] > region_points[j+1][0]:
+                            covered_rule_num[j] += 1
+                average_covered_rule_num = sum(covered_rule_num) / (len(region_points) - 1)
+
+                # pick the dimension with the min average to cut
+                if min_average > average_covered_rule_num:
+                    min_average = average_covered_rule_num
+                    cut_dimension = i
+
+                    # compute the position to cut
+                    half_covered_rule_num = sum(covered_rule_num) / 2
+                    current_sum = covered_rule_num[0]
+                    for i in range(1, len(region_points) - 1):
+                        if region_points[i][1] == 0:
+                            cut_position = region_points[i][0]
+                        else:
+                            cut_position = region_points[i][0] + 1
+
+                        if current_sum > half_covered_rule_num:
+                            break
+                        current_sum += covered_rule_num[i]
+
+        if cut_dimension == -1:
+            print("cannot cut")
+
+        return (cut_dimension, cut_position)
+
+    def build_tree(self, rules, cut_algorithm):
+
+        tree = Tree(rules, self.leaf_threshold,
+            {"node_merging"     : False,
+            "rule_overlay"      : False,
+            "region_compaction" : False,
+            "rule_pushup"       : False,
+            "equi_dense"        : False})
+        node = tree.get_current_node()
+        count = 0
+        while not tree.is_finish():
+            if tree.is_leaf(node):
+                node = tree.get_next_node()
+                continue
+
+            cut_dimension, cut_position = self.select_action(tree, node)
+            tree.cut_current_node_split(cut_dimension, cut_position)
+            node = tree.get_current_node()
+            count += 1
+            if count % 10000 == 0:
+                print(datetime.datetime.now(),
+                    "Depth:", tree.get_depth(),
+                    "Remaining nodes:", len(tree.nodes_to_cut))
+        return tree.compute_result(is_efficuts = True)
 
     def train(self):
         print(datetime.datetime.now(), "CutSplit starts")
         rule_subsets = self.separate_rules(self.rules)
-        rule_subsets = self.merge_rule_subsets(rule_subsets)
-        return
+
+        result = {"memory_access": 0, "bytes_per_rule": 0}
+        for i, rule_subset in enumerate(rule_subsets):
+            cut_algorithm = "hicuts" if i == 0 else "hypersplits"
+            result_subset = self.build_tree(rule_subset, cut_algorithm)
+            result["memory_access"] += result_subset["memory_access"]
+            result["bytes_per_rule"] += result_subset["bytes_per_rule"] * len(rule_subset)
+        result["bytes_per_rule"] /= len(self.rules)
+
+        print("%s Memory access:%d Bytes per rule: %f" %
+            (datetime.datetime.now(),
+            result["memory_access"],
+            result["bytes_per_rule"]))
