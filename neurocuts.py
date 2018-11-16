@@ -67,7 +67,7 @@ class NeuroCuts(object):
         self.batch_count = 0
         self.criterion = nn.MSELoss()
 
-        self.target_net = CutsNet(self.action_size)
+        self.target_net = CutsNet(self.action_size, onehot_state)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.target_net.eval()
 
@@ -139,7 +139,7 @@ class NeuroCuts(object):
         min_tree = None
         n = 0
         while True:
-            if n % 20 == 0:
+            if n > 0 and n % 20 == 0:
                 self.test = True
             else:
                 self.test = False
