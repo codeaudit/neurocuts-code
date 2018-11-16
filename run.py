@@ -60,7 +60,7 @@ if __name__ == "__main__":
         #run_neurocuts()
         #run_hicuts()
         #run_hypercuts()
-        run_efficuts()
+        #run_efficuts()
         run_cutsplit()
     else:
         print("Not supported option")
