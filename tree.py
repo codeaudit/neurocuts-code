@@ -78,6 +78,13 @@ def load_rules_from_file(file_name):
             proto_begin, proto_end+1]))
     return rules
 
+
+def to_bits(value, n):
+    b = list(bin(value)[2:])
+    assert len(b) <= n, (value, b, n)
+    return [0.0] * (n - len(b)) + [float(i) for i in b]
+
+
 class Node:
     def __init__(self, id, ranges, rules, depth):
         self.id = id
@@ -91,16 +98,20 @@ class Node:
 
     def compute_state(self):
         self.state = []
-        for i in range(4):
-            for j in range(4):
-                self.state.append(((self.ranges[i] - i % 2)  >> (j * 8)) & 0xff)
-        for i in range(4):
-            for j in range(2):
-                self.state.append(((self.ranges[i+4] - i % 2) >> (j * 8)) & 0xff)
-        self.state.append(self.ranges[8])
-        self.state.append(self.ranges[9] - 1)
-        self.state = [[i / 256 for i in self.state]]
-        self.state = torch.tensor(self.state)
+        self.state.extend(to_bits(self.ranges[0], 32))
+        self.state.extend(to_bits(self.ranges[1] - 1, 32))
+        self.state.extend(to_bits(self.ranges[2], 32))
+        self.state.extend(to_bits(self.ranges[3] - 1, 32))
+        assert len(self.state) == 128, len(self.state)
+        self.state.extend(to_bits(self.ranges[4], 16))
+        self.state.extend(to_bits(self.ranges[5] - 1, 16))
+        self.state.extend(to_bits(self.ranges[6], 16))
+        self.state.extend(to_bits(self.ranges[7] - 1, 16))
+        assert len(self.state) == 192, len(self.state)
+        self.state.extend(to_bits(self.ranges[8], 8))
+        self.state.extend(to_bits(self.ranges[9] - 1, 8))
+        assert len(self.state) == 208, len(self.state)
+        self.state = torch.tensor([self.state])
 
     def get_state(self):
         return self.state

@@ -14,26 +14,26 @@ def sync():
 
 def run_neurocuts():
     random.seed(1)
-    rules = load_rules_from_file("classbench/acl1_100")
+    rules = load_rules_from_file("classbench/acl1_1000")
     neuro_cuts = NeuroCuts(rules)
     neuro_cuts.train()
 
 def run_hicuts():
-    for i in ["100", "500", "1000"]:
+    for i in ["100", "500", "1000", "10K"]:
         print(i)
         rules = load_rules_from_file("classbench/acl1_%s" % i)
         cuts = HiCuts(rules)
         cuts.train()
 
 def run_hypercuts():
-    for i in ["100", "500", "1000"]:
+    for i in ["100", "500", "1000", "10K"]:
         print(i)
         rules = load_rules_from_file("classbench/acl1_%s" % i)
         cuts = HyperCuts(rules)
         cuts.train()
 
 def run_efficuts():
-    for i in ["100", "500", "1000"]:
+    for i in ["100", "500", "1000", "10K"]:
         print(i)
         rules = load_rules_from_file("classbench/acl1_%s" % i)
         cuts = EffiCuts(rules)
@@ -49,9 +49,9 @@ if __name__ == "__main__":
     if sys.argv[1] == "sync":
         sync()
     elif sys.argv[1] == "expr":
-        #run_neurocuts()
-        run_hicuts()
-        run_hypercuts()
-        run_efficuts()
+        run_neurocuts()
+#        run_hicuts()
+#        run_hypercuts()
+#        run_efficuts()
     else:
         print("Not supported option")

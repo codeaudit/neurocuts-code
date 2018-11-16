@@ -31,9 +31,9 @@ class ReplayMemory(object):
 class CutsNet(nn.Module):
     def __init__(self, action_size):
         super(CutsNet, self).__init__()
-        self.fc1 = nn.Linear(26, 50)
-        self.fc2 = nn.Linear(50, 50)
-        self.fc3 = nn.Linear(50, action_size)
+        self.fc1 = nn.Linear(208, 128)
+        self.fc2 = nn.Linear(128, 128)
+        self.fc3 = nn.Linear(128, action_size)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -44,15 +44,15 @@ class CutsNet(nn.Module):
 class NeuroCuts(object):
     def __init__(self, rules):
         # hyperparameters
-        self.N = 1000                   # maximum number of episodes
+        self.N = 10000                   # maximum number of episodes
         self.t_train = 10               # training interval
         self.C = 3                      # target model copy interval
-        self.gamma = 0.99               # reward discount factor
+        self.gamma = 1.00               # reward discount factor
         self.epsilon_start = 1.0        # exploration start rate
         self.epsilon_end = 0.1          # exploration end rate
         self.alpha = 0.1                # learning rate
-        self.batch_size = 64            # batch size
-        self.replay_memory_size = 10000 # replay memory size
+        self.batch_size = 256            # batch size
+        self.replay_memory_size = 100000 # replay memory size
         self.cuts_per_dimension = 5     # cuts per dimension
         self.action_size = 5 * self.cuts_per_dimension  # action size
         self.leaf_threshold = 16        # number of rules in a leaf
