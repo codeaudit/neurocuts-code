@@ -16,10 +16,15 @@ class ReplayMemory(object):
         self.memory = []
         self.position = 0
 
-    def push(self, transition):
+    def push(self, transition, tree):
         if len(self.memory) < self.capacity:
             self.memory.append(None)
-        self.memory[self.position] = transition
+        n, a, c, r = transition
+        non_final_mask = torch.tensor(
+            [not tree.is_leaf(child) for child in c],
+            dtype=torch.uint8)
+        c = (torch.cat([n.get_state() for n in c]), non_final_mask)
+        self.memory[self.position] = (n, a, c, r)
         self.position = (self.position + 1) % self.capacity
 
     def sample(self, batch_size):
@@ -99,20 +104,20 @@ class NeuroCuts(object):
         # current q values
         current_q_values = self.policy_net(batch_state).gather(1, batch_action)
 
+        flat_children = []
+        for children, _ in batch_children:
+            flat_children.extend(children)
+        target_values = self.target_net(torch.stack(flat_children))
+
         # expected q values
         max_next_q_values = []
-        for children in batch_children:
-            non_final_mask = torch.tensor(
-                [not tree.is_leaf(child) for child in children],
-                dtype=torch.uint8)
-            non_final_children = [child.get_state() for child in children if not tree.is_leaf(child)]
-
+        i = 0
+        for children, non_final_mask in batch_children:
             children_q_values = torch.zeros(len(children))
-            if len(non_final_children) > 0:
-                non_final_children = torch.cat(non_final_children)
-                children_q_values[non_final_mask] = \
-                    self.target_net(non_final_children).max(1)[0].detach()
+            children_q_values[non_final_mask] = \
+                target_values[i:i+len(children)].max(1)[0].detach()[non_final_mask]
             max_next_q_values.append(children_q_values.min().view(1, 1))
+            i += len(children)
         max_next_q_values = torch.cat(max_next_q_values)
         expected_q_values = batch_reward + self.gamma * max_next_q_values
 
@@ -148,11 +153,11 @@ class NeuroCuts(object):
                 children = tree.cut_current_node(cut_dimension, cut_num)
                 if tree.get_depth() > 22 and t > 1000:
                     reward = torch.tensor([[-100.]])
-                    self.replay_memory.push((node, action, children, reward))
+                    self.replay_memory.push((node, action, children, reward), tree)
                     break
                 else:
                     reward = torch.tensor([[-1.]])
-                    self.replay_memory.push((node, action, children, reward))
+                    self.replay_memory.push((node, action, children, reward), tree)
 
                 # update parameters
                 if t % self.t_train == 0:
