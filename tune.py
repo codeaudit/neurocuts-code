@@ -12,23 +12,28 @@ def run_neurocuts(config, reporter):
         rules,
         gamma=config["gamma"],
         reporter=reporter,
-        onehot_state=config["onehot_state"])
+        onehot_state=config["onehot_state"],
+        penalty=config["penalty"])
     neuro_cuts.train()
 
 
 if __name__ == "__main__":
     ray.init()
     run_experiments({
-        "neurocuts": {
+        "neurocuts-easy-anneal": {
             "run": run_neurocuts,
             "config": {
                 "rules": grid_search([
+#                    os.path.abspath("classbench/acl1_100"),
+                    os.path.abspath("classbench/acl1_200"),
+                    os.path.abspath("classbench/acl1_500"),
                     os.path.abspath("classbench/acl1_1000"),
-#                    os.path.abspath("classbench/acl1_10K"),
+                    os.path.abspath("classbench/acl1_10K"),
 #                    os.path.abspath("classbench/acl1_100K"),
                 ]),
-                "gamma": grid_search([0.99, 1.0]),
-                "onehot_state": grid_search([False, True]),
+                "penalty": grid_search([False]),
+                "gamma": grid_search([0.99]),
+                "onehot_state": grid_search([False]),
             },
         },
     })

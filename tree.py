@@ -86,7 +86,7 @@ def to_bits(value, n):
 
 
 class Node:
-    def __init__(self, id, ranges, rules, depth, onehot_state):
+    def __init__(self, id, ranges, rules, depth, onehot_state=False):
         self.id = id
         self.ranges = ranges
         self.rules = rules
@@ -96,7 +96,7 @@ class Node:
         self.action = None
         self.pushup_rules = None
 
-    def compute_state(self, onehot):
+    def compute_state(self, onehot=False):
         if onehot:
             self.state = []
             self.state.extend(to_bits(self.ranges[0], 32))

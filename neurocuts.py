@@ -1,5 +1,6 @@
 import random
 import math
+import numpy as np
 import datetime
 
 import torch
@@ -42,7 +43,8 @@ class CutsNet(nn.Module):
         return x
 
 class NeuroCuts(object):
-    def __init__(self, rules, gamma=0.99, onehot_state=True, reporter=None):
+    def __init__(self, rules, gamma=0.99, onehot_state=True, reporter=None,
+            penalty=False):
         # hyperparameters
         self.N = 1000                   # maximum number of episodes
         self.t_train = 10               # training interval
@@ -56,8 +58,11 @@ class NeuroCuts(object):
         self.replay_memory_size = 100000 # replay memory size
         self.cuts_per_dimension = 5     # cuts per dimension
         self.action_size = 5 * self.cuts_per_dimension  # action size
-        self.leaf_threshold = 16        # number of rules in a leaf
+        self.leaf_threshold_start = 128  # number of rules in a leaf start
+        self.leaf_threshold_end = 16     # number of rules in a leaf end
+        self.annealing_period = 5000     # annealing time for leaf threshold
         self.reporter = reporter
+        self.penalty = penalty
 
         # set up
         self.replay_memory = ReplayMemory(self.replay_memory_size)
@@ -138,13 +143,22 @@ class NeuroCuts(object):
     def train(self):
         min_tree = None
         n = 0
+        depths = [50]
+        nodes_left = []
+        rules_left = []
+        steps = []
         while True:
             if n > 0 and n % 20 == 0:
                 self.test = True
             else:
                 self.test = False
+            leaf_threshold = int(max(
+                self.leaf_threshold_end,
+                self.leaf_threshold_start -
+                    (self.leaf_threshold_start - self.leaf_threshold_end) *
+                    n / self.annealing_period))
             # build a new tree
-            tree = Tree(self.rules, self.leaf_threshold, onehot_state=self.onehot_state)
+            tree = Tree(self.rules, leaf_threshold, onehot_state=self.onehot_state)
             node = tree.get_current_node()
             t = 0
             while not tree.is_finish():
@@ -155,12 +169,13 @@ class NeuroCuts(object):
                 action = self.select_action(node.get_state(), n)
                 cut_dimension, cut_num = self.action_index_to_cut(node, action)
                 children = tree.cut_current_node(cut_dimension, cut_num)
+                reward = torch.tensor([[-1.]])
                 if tree.get_depth() > 22 and t > 1000:
-                    reward = torch.tensor([[-100.]])
+                    if self.penalty:
+                        reward = torch.tensor([[-100.]])
                     self.replay_memory.push((node, action, children, reward))
                     break
                 else:
-                    reward = torch.tensor([[-1.]])
                     self.replay_memory.push((node, action, children, reward))
 
                 # update parameters
@@ -176,18 +191,27 @@ class NeuroCuts(object):
             if min_tree is None or not self.test:
                 if min_tree is None or tree.get_depth() < min_tree.get_depth():
                     min_tree = tree
+            depths.append(tree.get_depth())
+            steps.append(t)
+            nodes_left.append(len(tree.nodes_to_cut))
+            rules_left.append(sum(len(n.rules) for n in tree.nodes_to_cut))
 
             if self.test:
                 if self.reporter:
                     self.reporter(
                         timesteps_total=n,
                         test_depth=tree.get_depth(),
-                        train_depth=min_tree.get_depth())
+                        test_steps=t,
+                        leaf_threshold=leaf_threshold,
+                        mean_rules_left=np.mean(rules_left[-20:]),
+                        mean_nodes_left=np.mean(nodes_left[-20:]),
+                        mean_train_depth=np.mean(depths[-20:]),
+                        mean_train_steps=np.mean(steps[-20:]))
                 print(datetime.datetime.now(),
                     "Episode:", n,
                     "Batch:", self.batch_count,
                     "Test Depth:", tree.get_depth(),
-                    "Train Depth:", min_tree.get_depth())
+                    "Train Depth:", min_tree and min_tree.get_depth())
                 #if min_tree.get_depth() < 15:
                 #    print(min_tree)
 
