@@ -2,7 +2,6 @@ import math
 import re
 
 import numpy as np
-import torch
 
 class Rule:
     def __init__(self, priority, ranges):
