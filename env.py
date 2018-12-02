@@ -5,6 +5,7 @@ from gym.spaces import Tuple, Box, Discrete
 
 from ray.rllib.env import MultiAgentEnv
 import ray
+from ray import tune
 from ray.tune import run_experiments
 from ray.tune.registry import register_env
 
@@ -20,7 +21,10 @@ class TreeEnv(MultiAgentEnv):
             rules_file,
             leaf_threshold=16,
             onehot_state=False,
+            mode="bfs",
             max_cuts_per_dimension=5):
+        assert mode == "bfs", "TODO support dfs"
+        self.mode = mode
         self.rules = load_rules_from_file(rules_file)
         self.leaf_threshold = leaf_threshold
         self.onehot_state = onehot_state
@@ -37,7 +41,6 @@ class TreeEnv(MultiAgentEnv):
             self.observation_space = Box(0, 1, (26,), dtype=np.float32)
 
     def reset(self):
-        print("new episode")
         self.num_actions = 0
         self.tree = Tree(
             self.rules, self.leaf_threshold, onehot_state=self.onehot_state)
@@ -63,18 +66,17 @@ class TreeEnv(MultiAgentEnv):
                     needs_split.append(c)
                 else:
                     num_leaf += 1
-#            print(
-#                "split", node_id, "depth", node.depth, "action", action,
-#                "->", len(children), "num leaf", num_leaf,
-#                "num actions", self.num_actions)
             self.child_map[node_id] = [c.id for c in children]
 
         if not needs_split or self.num_actions > MAX_ACTIONS_PER_EPISODE:
-            print("Remaining nodes on terminate", len(needs_split))
             rew = self.compute_rewards()
             zero_state = np.zeros_like(self.observation_space.sample())
             obs = {node_id: zero_state for node_id in rew.keys()}
             infos = {node_id: {} for node_id in rew.keys()}
+            infos[0] = {
+                "tree_depth": self.tree.get_depth(),
+                "nodes_remaining": len(needs_split),
+            }
             return obs, rew, {"__all__": True}, infos
         else:
             return (
@@ -105,8 +107,17 @@ class TreeEnv(MultiAgentEnv):
                         depth_to_go[node_id] = max_child_depth
                         num_updates += 1
         rew = {node_id: -depth for (node_id, depth) in depth_to_go.items()}
-#        print("rewards", rew)
         return rew
+
+
+def on_episode_end(info):
+    episode = info["episode"]
+    info = episode.last_info_for(0)
+    if info["nodes_remaining"] == 0:
+        info["tree_depth_valid"] = info["tree_depth"]
+    else:
+        info["tree_depth_valid"] = float("nan")
+    episode.custom_metrics.update(info)
 
 
 if __name__ == "__main__":
@@ -121,8 +132,11 @@ if __name__ == "__main__":
                 "num_workers": 0,
                 "batch_mode": "complete_episodes",
                 "simple_optimizer": True,
+                "callbacks": {
+                    "on_episode_end": tune.function(on_episode_end),
+                },
                 "env_config": {
-                    "rules": os.path.abspath("classbench/acl1_100"),
+                    "rules": os.path.abspath("classbench/acl1_200"),
                 },
             },
         },
