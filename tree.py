@@ -1,6 +1,7 @@
 import math
 import re
 
+import numpy as np
 import torch
 
 class Rule:
@@ -86,13 +87,12 @@ def to_bits(value, n):
 
 
 class Node:
-    def __init__(self, id, ranges, rules, depth, onehot_state=False, pytorch=True):
+    def __init__(self, id, ranges, rules, depth, onehot_state=False):
         self.id = id
         self.ranges = ranges
         self.rules = rules
         self.depth = depth
         self.children = []
-        self.pytorch = pytorch
         self.compute_state(onehot_state)
         self.action = None
         self.pushup_rules = None
@@ -124,10 +124,7 @@ class Node:
             self.state.append(self.ranges[8])
             self.state.append(self.ranges[9] - 1)
             self.state = [i / 256 for i in self.state]
-        if self.pytorch:
-            self.state = torch.tensor([self.state])
-        else:
-            self.state = np.array(self.state)
+        self.state = np.array(self.state)
 
     def get_state(self):
         return self.state

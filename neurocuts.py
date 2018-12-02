@@ -101,7 +101,7 @@ class NeuroCuts(object):
         self.batch_count += 1
         transitions = self.replay_memory.sample(self.batch_size)
         batch_node, batch_action, batch_children, batch_reward = zip(*transitions)
-        batch_state = torch.cat([node.get_state() for node in batch_node])
+        batch_state = torch.cat([torch.tensor([node.get_state()]) for node in batch_node])
         batch_action = torch.cat(batch_action)
         batch_reward = torch.cat(batch_reward)
 
@@ -114,7 +114,7 @@ class NeuroCuts(object):
             non_final_mask = torch.tensor(
                 [not tree.is_leaf(child) for child in children],
                 dtype=torch.uint8)
-            non_final_children = [child.get_state() for child in children if not tree.is_leaf(child)]
+            non_final_children = [torch.tensor([child.get_state()]) for child in children if not tree.is_leaf(child)]
 
             children_q_values = torch.zeros(len(children))
             if len(non_final_children) > 0:
@@ -161,7 +161,7 @@ class NeuroCuts(object):
                     node = tree.get_next_node()
                     continue
 
-                action = self.select_action(node.get_state(), n)
+                action = self.select_action(torch.tensor([node.get_state()]), n)
                 cut_dimension, cut_num = self.action_index_to_cut(node, action)
                 children = tree.cut_current_node(cut_dimension, cut_num)
                 reward = torch.tensor([[-1.]])
