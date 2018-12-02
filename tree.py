@@ -80,7 +80,8 @@ def load_rules_from_file(file_name):
 
 
 def to_bits(value, n):
-    b = list(bin(value)[2:])
+    assert value == int(value)
+    b = list(bin(int(value))[2:])
     assert len(b) <= n, (value, b, n)
     return [0.0] * (n - len(b)) + [float(i) for i in b]
 
@@ -116,10 +117,10 @@ class Node:
             self.state = []
             for i in range(4):
                 for j in range(4):
-                    self.state.append(((self.ranges[i] - i % 2)  >> (j * 8)) & 0xff)
+                    self.state.append(((int(self.ranges[i]) - i % 2)  >> (j * 8)) & 0xff)
             for i in range(4):
                 for j in range(2):
-                    self.state.append(((self.ranges[i+4] - i % 2) >> (j * 8)) & 0xff)
+                    self.state.append(((int(self.ranges[i+4]) - i % 2) >> (j * 8)) & 0xff)
             self.state.append(self.ranges[8])
             self.state.append(self.ranges[9] - 1)
             self.state = [i / 256 for i in self.state]
@@ -214,7 +215,7 @@ class Tree:
 
         children = []
         for i in range(cut_num):
-            child_ranges = node.ranges.copy()
+            child_ranges = list(node.ranges)
             child_ranges[cut_dimension*2] = range_left + i * range_per_cut
             child_ranges[cut_dimension*2+1] = min(range_right,
                 range_left + (i+1) * range_per_cut)
@@ -250,7 +251,7 @@ class Tree:
         children = []
         while True:
             # compute child ranges
-            child_ranges = node.ranges.copy()
+            child_ranges = list(node.ranges)
             for i in range(len(cut_dimensions)):
                 dimension = cut_dimensions[i]
                 child_ranges[dimension*2] = node.ranges[dimension*2] + \
@@ -359,7 +360,7 @@ class Tree:
         if len(node.rules) == 0:
             return
 
-        new_ranges = node.rules[0].ranges.copy()
+        new_ranges = list(node.rules[0].ranges)
         for rule in node.rules[1:]:
             for i in range(5):
                 new_ranges[i*2] = min(new_ranges[i*2], rule.ranges[i*2])
@@ -386,7 +387,7 @@ class Tree:
                 if len(node.children) == 0:
                     node.pushup_rules = set(node.rules)
                 else:
-                    node.pushup_rules = node.children[0].pushup_rules.copy()
+                    node.pushup_rules = list(node.children[0].pushup_rules)
                     for j in range(1, len(node.children)):
                         node.pushup_rules = node.pushup_rules.intersection(node.children[j].pushup_rules)
                     for child in node.children:
@@ -398,8 +399,8 @@ class Tree:
         max_rule_count = -1
         for node in nodes:
             nodes_copy.append(
-                Node(node.id, node.ranges.copy(),
-                    node.rules.copy(), node.depth, self.onehot_state))
+                Node(node.id, list(node.ranges),
+                    list(node.rules), node.depth, self.onehot_state))
             max_rule_count = max(max_rule_count, len(node.rules))
         while True:
             flag = True

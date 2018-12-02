@@ -67,7 +67,7 @@ class TreeEnv(MultiAgentEnv):
         for node_id, action in action_dict.items():
             node = self.node_map[node_id]
             cut_dimension, cut_num = self.action_tuple_to_cut(node, action)
-            children = self.tree.cut_node(node, cut_dimension, cut_num)
+            children = self.tree.cut_node(node, cut_dimension, int(cut_num))
             self.num_actions += 1
             num_leaf = 0
             for c in children:
@@ -123,7 +123,7 @@ class TreeEnv(MultiAgentEnv):
             num_updates = 0
             for node_id, node in self.node_map.items():
                 if node_id not in depth_to_go:
-                    if self.tree.is_leaf(node_id):
+                    if self.tree.is_leaf(node):
                         depth_to_go[node_id] = 0  # is leaf
                     elif node_id not in self.child_map:
                         depth_to_go[node_id] = 0  # no children
