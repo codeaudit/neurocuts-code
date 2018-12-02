@@ -32,9 +32,9 @@ class ReplayMemory(object):
 class CutsNet(nn.Module):
     def __init__(self, action_size, onehot_state):
         super(CutsNet, self).__init__()
-        self.fc1 = nn.Linear(208 if onehot_state else 26, 50)
-        self.fc2 = nn.Linear(50, 50)
-        self.fc3 = nn.Linear(50, action_size)
+        self.fc1 = nn.Linear(208 if onehot_state else 26, 256)
+        self.fc2 = nn.Linear(256, 256)
+        self.fc3 = nn.Linear(256, action_size)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -60,7 +60,6 @@ class NeuroCuts(object):
         self.action_size = 5 * self.cuts_per_dimension  # action size
         self.leaf_threshold_start = 128  # number of rules in a leaf start
         self.leaf_threshold_end = 16     # number of rules in a leaf end
-        self.annealing_period = 5000     # annealing time for leaf threshold
         self.reporter = reporter
         self.penalty = penalty
 
@@ -147,16 +146,12 @@ class NeuroCuts(object):
         nodes_left = []
         rules_left = []
         steps = []
+        leaf_threshold = self.leaf_threshold_start
         while True:
             if n > 0 and n % 20 == 0:
                 self.test = True
             else:
                 self.test = False
-            leaf_threshold = int(max(
-                self.leaf_threshold_end,
-                self.leaf_threshold_start -
-                    (self.leaf_threshold_start - self.leaf_threshold_end) *
-                    n / self.annealing_period))
             # build a new tree
             tree = Tree(self.rules, leaf_threshold, onehot_state=self.onehot_state)
             node = tree.get_current_node()
@@ -195,6 +190,10 @@ class NeuroCuts(object):
             steps.append(t)
             nodes_left.append(len(tree.nodes_to_cut))
             rules_left.append(sum(len(n.rules) for n in tree.nodes_to_cut))
+
+            if tree.get_depth() < 15:
+                leaf_threshold = max(
+                    leaf_threshold - 1, self.leaf_threshold_end)
 
             if self.test:
                 if self.reporter:

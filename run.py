@@ -49,8 +49,8 @@ if __name__ == "__main__":
     if sys.argv[1] == "sync":
         sync()
     elif sys.argv[1] == "expr":
-#        run_neurocuts()
-        run_hicuts()
+        run_neurocuts()
+#        run_hicuts()
 #        run_hypercuts()
 #        run_efficuts()
     else:

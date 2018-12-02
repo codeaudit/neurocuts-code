@@ -86,12 +86,13 @@ def to_bits(value, n):
 
 
 class Node:
-    def __init__(self, id, ranges, rules, depth, onehot_state=False):
+    def __init__(self, id, ranges, rules, depth, onehot_state=False, pytorch=True):
         self.id = id
         self.ranges = ranges
         self.rules = rules
         self.depth = depth
         self.children = []
+        self.pytorch = pytorch
         self.compute_state(onehot_state)
         self.action = None
         self.pushup_rules = None
@@ -112,7 +113,6 @@ class Node:
             self.state.extend(to_bits(self.ranges[8], 8))
             self.state.extend(to_bits(self.ranges[9] - 1, 8))
             assert len(self.state) == 208, len(self.state)
-            self.state = torch.tensor([self.state])
         else:
             self.state = []
             for i in range(4):
@@ -123,8 +123,11 @@ class Node:
                     self.state.append(((self.ranges[i+4] - i % 2) >> (j * 8)) & 0xff)
             self.state.append(self.ranges[8])
             self.state.append(self.ranges[9] - 1)
-            self.state = [[i / 256 for i in self.state]]
-            self.state = torch.tensor(self.state)
+            self.state = [i / 256 for i in self.state]
+        if self.pytorch:
+            self.state = torch.tensor([self.state])
+        else:
+            self.state = np.array(self.state)
 
     def get_state(self):
         return self.state
@@ -204,8 +207,10 @@ class Tree:
         self.current_node = self.nodes_to_cut[-1]
 
     def cut_current_node(self, cut_dimension, cut_num):
-        self.depth = max(self.depth, self.current_node.depth + 1)
-        node = self.current_node
+        return self.cut_node(self.current_node, cut_dimension, cut_num)
+
+    def cut_node(self, node, cut_dimension, cut_num):
+        self.depth = max(self.depth, node.depth + 1)
         node.action = (cut_dimension, cut_num)
         range_left = node.ranges[cut_dimension*2]
         range_right = node.ranges[cut_dimension*2+1]

@@ -20,7 +20,7 @@ def run_neurocuts(config, reporter):
 if __name__ == "__main__":
     ray.init()
     run_experiments({
-        "neurocuts-easy-anneal": {
+        "neurocuts-easy-adaptive-bignet": {
             "run": run_neurocuts,
             "config": {
                 "rules": grid_search([
@@ -33,7 +33,7 @@ if __name__ == "__main__":
                 ]),
                 "penalty": grid_search([False]),
                 "gamma": grid_search([0.99]),
-                "onehot_state": grid_search([False]),
+                "onehot_state": grid_search([True]),
             },
         },
     })
