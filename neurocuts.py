@@ -158,14 +158,14 @@ class NeuroCuts(object):
             t = 0
             while not tree.is_finish():
                 if tree.is_leaf(node):
-                    node = tree.get_next_node()
+                    node = self.tree.get_next_node()
                     continue
 
                 action = self.select_action(torch.tensor([node.get_state()]), n)
                 cut_dimension, cut_num = self.action_index_to_cut(node, action)
                 children = tree.cut_current_node(cut_dimension, cut_num)
                 reward = torch.tensor([[-1.]])
-                if tree.get_depth() > 22 and t > 1000:
+                if self.tree.get_depth() > 22 and t > 1000:
                     if self.penalty:
                         reward = torch.tensor([[-100.]])
                     self.replay_memory.push((node, action, children, reward))
@@ -179,7 +179,7 @@ class NeuroCuts(object):
                         self.target_net.load_state_dict(
                             self.policy_net.state_dict())
                     self.optimize_model(tree)
-                node = tree.get_current_node()
+                node = self.tree.get_current_node()
                 t += 1
 
             # store the tree with min depth

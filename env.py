@@ -6,7 +6,7 @@ from gym.spaces import Tuple, Box, Discrete
 from ray.rllib.env import MultiAgentEnv
 import ray
 from ray import tune
-from ray.tune import run_experiments
+from ray.tune import run_experiments, grid_search
 from ray.tune.registry import register_env
 
 from tree import *
@@ -23,7 +23,6 @@ class TreeEnv(MultiAgentEnv):
             onehot_state=False,
             mode="bfs",
             max_cuts_per_dimension=5):
-        assert mode == "bfs", "TODO support dfs"
         self.mode = mode
         self.rules = load_rules_from_file(rules_file)
         self.leaf_threshold = leaf_threshold
@@ -53,7 +52,10 @@ class TreeEnv(MultiAgentEnv):
         }
 
     def step(self, action_dict):
-        needs_split = []
+        if self.mode == "dfs":
+            assert len(action_dict) == 1  # one at a time processing
+
+        new_children = []
         for node_id, action in action_dict.items():
             node = self.node_map[node_id]
             cut_dimension, cut_num = self.action_tuple_to_cut(node, action)
@@ -63,22 +65,35 @@ class TreeEnv(MultiAgentEnv):
             for c in children:
                 self.node_map[c.id] = c
                 if not self.tree.is_leaf(c):
-                    needs_split.append(c)
+                    new_children.append(c)
                 else:
                     num_leaf += 1
             self.child_map[node_id] = [c.id for c in children]
 
-        if not needs_split or self.num_actions > MAX_ACTIONS_PER_EPISODE:
+        if self.mode == "bfs":
+            nodes_remaining = new_children
+        else:
+            node = self.tree.get_current_node()
+            while node and self.tree.is_leaf(node):
+                node = self.tree.get_next_node()
+            nodes_remaining = self.tree.nodes_to_cut
+
+        if not nodes_remaining or self.num_actions > MAX_ACTIONS_PER_EPISODE:
             rew = self.compute_rewards()
             zero_state = np.zeros_like(self.observation_space.sample())
             obs = {node_id: zero_state for node_id in rew.keys()}
             infos = {node_id: {} for node_id in rew.keys()}
             infos[0] = {
                 "tree_depth": self.tree.get_depth(),
-                "nodes_remaining": len(needs_split),
+                "nodes_remaining": len(nodes_remaining),
+                "num_splits": self.num_actions,
             }
             return obs, rew, {"__all__": True}, infos
         else:
+            if self.mode == "dfs":
+                needs_split = [self.tree.get_current_node()]
+            else:
+                needs_split = new_children
             return (
                 {s.id: s.get_state() for s in needs_split},
                 {s.id: 0 for s in needs_split},
@@ -122,21 +137,25 @@ def on_episode_end(info):
 
 if __name__ == "__main__":
     ray.init()
+
     register_env(
-        "tree_env", lambda env_config: TreeEnv(env_config["rules"]))
+        "tree_env", lambda env_config: TreeEnv(
+            env_config["rules"],
+            mode=env_config["mode"]))
+
     run_experiments({
-        "neurocuts": {
+        "neurocuts-500": {
             "run": "PPO",
             "env": "tree_env",
             "config": {
                 "num_workers": 0,
                 "batch_mode": "complete_episodes",
-                "simple_optimizer": True,
                 "callbacks": {
                     "on_episode_end": tune.function(on_episode_end),
                 },
                 "env_config": {
-                    "rules": os.path.abspath("classbench/acl1_200"),
+                    "rules": os.path.abspath("classbench/acl1_500"),
+                    "mode": grid_search(["bfs", "dfs"]),
                 },
             },
         },
