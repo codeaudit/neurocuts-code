@@ -9,7 +9,8 @@ from ray import tune
 from ray.tune import run_experiments, grid_search
 from ray.tune.registry import register_env
 
-from tree import *
+from tree import Tree, load_rules_from_file
+from hicuts import HiCuts
 
 
 class TreeEnv(MultiAgentEnv):
@@ -20,7 +21,16 @@ class TreeEnv(MultiAgentEnv):
             onehot_state=True,
             mode="dfs",
             max_cuts_per_dimension=5,
-            max_actions_per_episode=1000):
+            max_actions_per_episode=1000,
+            leaf_value_fn="hicuts"):
+
+        if leaf_value_fn == "hicuts":
+            self.leaf_value_fn = lambda rules: HiCuts(rules).get_depth()
+        elif leaf_value_fn is None:
+            self.leaf_value_fn = lambda rules: 0
+        else:
+            raise ValueError("Unknown value fn: {}".format(leaf_value_fn))
+
         self.mode = mode
         self.rules = load_rules_from_file(rules_file)
         self.leaf_threshold = leaf_threshold
@@ -113,7 +123,12 @@ class TreeEnv(MultiAgentEnv):
             num_updates = 0
             for node_id, node in self.node_map.items():
                 if node_id not in depth_to_go:
-                    depth_to_go[node_id] = 0
+                    if self.tree.is_leaf(node_id):
+                        depth_to_go[node_id] = 0  # is leaf
+                    elif node_id not in self.child_map:
+                        depth_to_go[node_id] = 0  # no children
+                    else:
+                        depth_to_go[node_id] = self.leaf_value_fn(node.rules)
                 if node_id in self.child_map:
                     max_child_depth = 1 + max(
                         [depth_to_go[c] for c in self.child_map[node_id]])
@@ -144,19 +159,20 @@ if __name__ == "__main__":
             mode=env_config["mode"]))
 
     run_experiments({
-        "neurocuts-500": {
+        "neurocuts-env":  {
             "run": "PPO",
             "env": "tree_env",
             "config": {
-                "num_workers": 2,
+                "num_workers": 24,
                 "batch_mode": "complete_episodes",
                 "callbacks": {
                     "on_episode_end": tune.function(on_episode_end),
                 },
                 "env_config": {
                     "rules": os.path.abspath("classbench/acl1_500"),
-                    "mode": grid_search(["dfs"]),
+                    "mode": "dfs",
                     "onehot_state": True,
+                    "leaf_value_fn": grid_search(["hicuts", None]),
                 },
             },
         },
