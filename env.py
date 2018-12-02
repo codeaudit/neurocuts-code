@@ -11,29 +11,27 @@ from ray.tune.registry import register_env
 
 from tree import *
 
-DIMENSIONS_TO_CUT = 5
-MAX_ACTIONS_PER_EPISODE = 1000
-
 
 class TreeEnv(MultiAgentEnv):
     def __init__(
             self,
             rules_file,
             leaf_threshold=16,
-            onehot_state=False,
-            mode="bfs",
-            max_cuts_per_dimension=5):
+            onehot_state=True,
+            mode="dfs",
+            max_cuts_per_dimension=5,
+            max_actions_per_episode=1000):
         self.mode = mode
         self.rules = load_rules_from_file(rules_file)
         self.leaf_threshold = leaf_threshold
         self.onehot_state = onehot_state
+        self.max_actions_per_episode = max_actions_per_episode
         self.num_actions = None
         self.tree = None
         self.node_map = None
         self.child_map = None
         self.action_space = Tuple(
-            [Discrete(DIMENSIONS_TO_CUT),
-             Discrete(max_cuts_per_dimension)])
+            [Discrete(5), Discrete(max_cuts_per_dimension)])
         if onehot_state:
             self.observation_space = Box(0, 1, (208,), dtype=np.float32)
         else:
@@ -78,7 +76,8 @@ class TreeEnv(MultiAgentEnv):
                 node = self.tree.get_next_node()
             nodes_remaining = self.tree.nodes_to_cut
 
-        if not nodes_remaining or self.num_actions > MAX_ACTIONS_PER_EPISODE:
+        if (not nodes_remaining or
+                self.num_actions > self.max_actions_per_episode):
             rew = self.compute_rewards()
             zero_state = np.zeros_like(self.observation_space.sample())
             obs = {node_id: zero_state for node_id in rew.keys()}
@@ -141,6 +140,7 @@ if __name__ == "__main__":
     register_env(
         "tree_env", lambda env_config: TreeEnv(
             env_config["rules"],
+            onehot_state=env_config["onehot_state"],
             mode=env_config["mode"]))
 
     run_experiments({
@@ -148,14 +148,15 @@ if __name__ == "__main__":
             "run": "PPO",
             "env": "tree_env",
             "config": {
-                "num_workers": 0,
+                "num_workers": 2,
                 "batch_mode": "complete_episodes",
                 "callbacks": {
                     "on_episode_end": tune.function(on_episode_end),
                 },
                 "env_config": {
                     "rules": os.path.abspath("classbench/acl1_500"),
-                    "mode": grid_search(["bfs", "dfs"]),
+                    "mode": grid_search(["dfs"]),
+                    "onehot_state": True,
                 },
             },
         },
