@@ -37,13 +37,14 @@ class CutsNet(nn.Module):
         self.fc3 = nn.Linear(256, action_size)
 
     def forward(self, x):
+        x = x.float()
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
         return x
 
 class NeuroCuts(object):
-    def __init__(self, rules, gamma=0.99, onehot_state=True, reporter=None,
+    def __init__(self, rules, gamma=0.99, onehot_state=False, reporter=None,
             penalty=False):
         # hyperparameters
         self.N = 1000                   # maximum number of episodes
@@ -58,7 +59,7 @@ class NeuroCuts(object):
         self.replay_memory_size = 100000 # replay memory size
         self.cuts_per_dimension = 5     # cuts per dimension
         self.action_size = 5 * self.cuts_per_dimension  # action size
-        self.leaf_threshold_start = 128  # number of rules in a leaf start
+        self.leaf_threshold_start = 16  # number of rules in a leaf start
         self.leaf_threshold_end = 16     # number of rules in a leaf end
         self.reporter = reporter
         self.penalty = penalty
@@ -158,14 +159,14 @@ class NeuroCuts(object):
             t = 0
             while not tree.is_finish():
                 if tree.is_leaf(node):
-                    node = self.tree.get_next_node()
+                    node = tree.get_next_node()
                     continue
 
                 action = self.select_action(torch.tensor([node.get_state()]), n)
                 cut_dimension, cut_num = self.action_index_to_cut(node, action)
                 children = tree.cut_current_node(cut_dimension, cut_num)
                 reward = torch.tensor([[-1.]])
-                if self.tree.get_depth() > 22 and t > 1000:
+                if tree.get_depth() > 22 and t > 1000:
                     if self.penalty:
                         reward = torch.tensor([[-100.]])
                     self.replay_memory.push((node, action, children, reward))
@@ -179,7 +180,7 @@ class NeuroCuts(object):
                         self.target_net.load_state_dict(
                             self.policy_net.state_dict())
                     self.optimize_model(tree)
-                node = self.tree.get_current_node()
+                node = tree.get_current_node()
                 t += 1
 
             # store the tree with min depth
