@@ -198,11 +198,6 @@ class TreeEnv(MultiAgentEnv):
         cut_num = min(2**(action[1] + 1), range_right - range_left)
         return (cut_dimension, cut_num)
 
-        if self.q_learning:
-            return self._compute_rewards_1step()
-        else:
-            return self._compute_rewards_agg()
-
     def compute_rewards(self):
         depth_to_go = collections.defaultdict(int)
         num_updates = 1
