@@ -34,11 +34,11 @@ class TreeEnv(MultiAgentEnv):
             max_cuts_per_dimension=5,
             max_actions_per_episode=1000,
             leaf_value_fn="hicuts",
-            encode_next_state=False):
+            q_learning=False):
 
         if leaf_value_fn == "hicuts":
             self.leaf_value_fn = lambda rules: HiCuts(rules).get_depth()
-            assert not encode_next_state, "configuration not supported"
+            assert not q_learning, "configuration not supported"
         elif leaf_value_fn is None:
             self.leaf_value_fn = lambda rules: 0
         else:
@@ -53,19 +53,21 @@ class TreeEnv(MultiAgentEnv):
         self.tree = None
         self.node_map = None
         self.child_map = None
-        self.encode_next_state = encode_next_state
-        if encode_next_state:
+        self.q_learning = q_learning
+        if q_learning:
             num_actions = 5 * max_cuts_per_dimension
             self.max_cuts_per_dimension = max_cuts_per_dimension
             self.max_children = 2**max_cuts_per_dimension
             self.action_space = Discrete(num_actions)
             if onehot_state:
                 observation_space = Tuple([
-                    Discrete(self.max_children + 1),  # num valid children
+                    Box(1, self.max_children, (), dtype=np.float32),  # nchild
+                    Box(0, 1, (), dtype=np.float32),  # is finished
                     Box(0, 1, (self.max_children, 208), dtype=np.float32)])
             else:
                 observation_space = Tuple([
-                    Discrete(self.max_children + 1),
+                    Box(1, self.max_children, (), dtype=np.float32),
+                    Box(0, 1, (), dtype=np.float32),
                     Box(0, 1, (self.max_children, 26), dtype=np.float32)])
             self.preprocessor = TupleFlatteningPreprocessor(observation_space)
             self.observation_space = self.preprocessor.observation_space
@@ -97,21 +99,26 @@ class TreeEnv(MultiAgentEnv):
         return zeros
 
     def _encode_state(self, node):
-        if self.encode_next_state:
+        if self.q_learning:
             state = [self._zeros() for _ in range(self.max_children)]
             state[0] = node.get_state()
-            return self.preprocessor.transform([1, state])
+            return self.preprocessor.transform([1, 0, state])
         else:
             return node.get_state()
 
     def _encode_child_state(self, node):
-        assert self.encode_next_state
+        assert self.q_learning
         children = self.child_map[node.id]
         assert len(children) <= self.max_children, children
         state = [self._zeros() for _ in range(self.max_children)]
+        finished = 1
         for i, c in enumerate(children):
-            state[i] = self.node_map[c].get_state()
-        return self.preprocessor.transform([len(children), state])
+            child = self.node_map[c]
+            state[i] = child.get_state()
+            if not self.tree.is_leaf(child):
+                finished = 0
+        return self.preprocessor.transform(
+            [max(1, len(children)), finished, state])
 
     def step(self, action_dict):
         if self.mode == "dfs":
@@ -144,34 +151,45 @@ class TreeEnv(MultiAgentEnv):
                 node = self.tree.get_next_node()
             nodes_remaining = self.tree.nodes_to_cut
 
+        if self.q_learning:
+            obs, rew, done, info = {}, {}, {}, {}
+            for node_id, action in action_dict.items():
+                if node_id == 0:
+                    continue
+                obs[node_id] = self._encode_child_state(self.node_map[node_id])
+                rew[node_id] = -1
+                done[node_id] = True
+                info[node_id] = {}
+        else:
+            obs, rew, done, info = {}, {}, {}, {}
+
         if (not nodes_remaining or
                 self.num_actions > self.max_actions_per_episode):
-            rew = self.compute_rewards()
-            if self.encode_next_state:
-                obs = {
-                    node_id: self._encode_child_state(self.node_map[node_id])
-                    for node_id in rew.keys()
-                }
+            if self.q_learning:
+                # terminate the root agent last always to preserve the stats
+                obs[0] = self._encode_child_state(self.tree.root)
+                rew[0] = -1
             else:
-                zero_state = np.zeros_like(self.observation_space.sample())
+                zero_state = [1, self._zeros()]
+                rew = self.compute_rewards()
                 obs = {node_id: zero_state for node_id in rew.keys()}
-            infos = {node_id: {} for node_id in rew.keys()}
-            infos[0] = {
+                info = {node_id: {} for node_id in rew.keys()}
+            info[0] = {
                 "tree_depth": self.tree.get_depth(),
                 "nodes_remaining": len(nodes_remaining),
                 "num_splits": self.num_actions,
             }
-            return obs, rew, {"__all__": True}, infos
+            return obs, rew, {"__all__": True}, info
         else:
             if self.mode == "dfs":
                 needs_split = [self.tree.get_current_node()]
             else:
                 needs_split = new_children
-            return (
-                {s.id: self._encode_state(s) for s in needs_split},
-                {s.id: 0 for s in needs_split},
-                {"__all__": False},
-                {s.id: {} for s in needs_split})
+            obs.update({s.id: self._encode_state(s) for s in needs_split})
+            rew.update({s.id: 0 for s in needs_split})
+            done.update({"__all__": False})
+            info.update({s.id: {} for s in needs_split})
+            return obs, rew, done, info
 
     def action_tuple_to_cut(self, node, action):
         cut_dimension = action[0]
@@ -180,20 +198,12 @@ class TreeEnv(MultiAgentEnv):
         cut_num = min(2**(action[1] + 1), range_right - range_left)
         return (cut_dimension, cut_num)
 
-    def compute_rewards(self):
-        if self.encode_next_state:
+        if self.q_learning:
             return self._compute_rewards_1step()
         else:
             return self._compute_rewards_agg()
 
-    def _compute_rewards_1step(self):
-        rewards = {}
-        for node_id, node in self.node_map.items():
-            if node_id in self.child_map:
-                rewards[node_id] = -1
-        return rewards
-
-    def _compute_rewards_agg(self):
+    def compute_rewards(self):
         depth_to_go = collections.defaultdict(int)
         num_updates = 1
         while num_updates > 0:
@@ -220,16 +230,6 @@ class TreeEnv(MultiAgentEnv):
         return rew
 
 
-def on_episode_end(info):
-    episode = info["episode"]
-    info = episode.last_info_for(0)
-    if info["nodes_remaining"] == 0:
-        info["tree_depth_valid"] = info["tree_depth"]
-    else:
-        info["tree_depth_valid"] = float("nan")
-    episode.custom_metrics.update(info)
-
-
 class MinChildQFunc(Model):
     """A Q function that internally takes the argmin over nodes in the state.
 
@@ -245,19 +245,27 @@ class MinChildQFunc(Model):
     """
 
     def _build_layers_v2(self, input_dict, num_outputs, options):
-        num_nodes = input_dict["obs"][0]  # shape [BATCH]
-        node_states = input_dict["obs"][1]  # shape [BATCH, MAX_CHILD, STATE]
+        num_nodes = tf.cast(input_dict["obs"][0], tf.int32)  # shape [BATCH]
+        finished = input_dict["obs"][1]  # shape [BATCH]
+        node_states = input_dict["obs"][2]  # shape [BATCH, MAX_CHILD, STATE]
         max_children = node_states.get_shape().as_list()[-2]
+        num_actions = num_outputs
 
         # shape [BATCH * MAX_CHILD, STATE]
         flat_shape = [-1, node_states.get_shape().as_list()[-1]]
         nodes_flat = tf.reshape(node_states, flat_shape)
 
         # Mask for invalid nodes (use tf.float32.min for stability)
+        # shape [BATCH, MAX_CHILD]
         action_mask = tf.cast(
             tf.sequence_mask(num_nodes, max_children), tf.float32)
+        # shape [BATCH, MAX_CHILD, NUM_ACTIONS]
+        action_mask = tf.tile(
+            tf.expand_dims(action_mask, 2), [1, 1, num_actions])
+        # shape [BATCH * MAX_CHILD, NUM_ACTIONS]
         flat_inf_mask = tf.reshape(
-            tf.maximum(tf.log(action_mask), tf.float32.min), flat_shape)
+            tf.minimum(-tf.log(action_mask), tf.float32.max),
+            [-1, num_actions])
 
         # push flattened node states through the Q network
         last_layer = nodes_flat
@@ -267,21 +275,20 @@ class MinChildQFunc(Model):
                 last_layer,
                 size,
                 weights_initializer=normc_initializer(1.0),
-                activation_fn=tf.nn.tanh,
+                activation_fn=tf.nn.relu,
                 scope=label)
 
         # shape [BATCH * MAX_CHILD, NUM_ACTIONS]
         action_scores = slim.fully_connected(
             last_layer,
-            num_outputs,
+            num_actions,
             weights_initializer=normc_initializer(0.01),
             activation_fn=None,
             scope="fc_out")
 
         # shape [BATCH, MAX_CHILD, NUM_ACTIONS]
         masked_scores = tf.reshape(
-            action_scores + flat_inf_mask,
-            node_states.get_shape().as_list()[:-1] + [num_outputs])
+            action_scores + flat_inf_mask, [-1, max_children, num_actions])
 
         # case 1: emit [BATCH, NUM_ACTIONS <- actual scores for node 0]
         action_out1 = masked_scores[:, 0, :]
@@ -289,10 +296,32 @@ class MinChildQFunc(Model):
         # case 2: emit [BATCH, NUM_ACTIONS <- uniform; min over all nodes]
         child_min_max = tf.reduce_min(
             tf.reduce_max(masked_scores, axis=2), axis=1)
-        action_out2 = tf.tile(tf.expand_dims(child_min_max), num_outputs)
+        action_out2 = tf.tile(
+            tf.expand_dims(child_min_max, 1), [1, num_actions])
 
         output = tf.where(tf.equal(num_nodes, 1), action_out1, action_out2)
+
+        # zero out the Q values for finished nodes (to replace done mask)
+        # if you don't do this the Q est will decrease unboundedly!
+        output = output * tf.expand_dims(1 - finished, 1)
         return output, output
+
+
+def on_episode_end(info):
+    """Report tree custom metrics"""
+    episode = info["episode"]
+    info = episode.last_info_for(0)
+    if info["nodes_remaining"] == 0:
+        info["tree_depth_valid"] = info["tree_depth"]
+    else:
+        info["tree_depth_valid"] = float("nan")
+    episode.custom_metrics.update(info)
+
+
+def erase_done_values(info):
+    """Hack: set dones=False so that Q-backup in a tree works."""
+    samples = info["samples"]
+    samples["dones"] = [False for _ in samples["dones"]]
 
 
 if __name__ == "__main__":
@@ -303,11 +332,15 @@ if __name__ == "__main__":
         "tree_env", lambda env_config: TreeEnv(
             env_config["rules"],
             onehot_state=env_config["onehot_state"],
-            encode_next_state=env_config["encode_next_state"],
+            q_learning=env_config["q_learning"],
             leaf_value_fn=env_config["leaf_value_fn"],
             mode=env_config["mode"]))
 
-    if args.run in ["DQN", "APEX"]:
+    extra_config = {}
+    extra_env_config = {}
+
+    q_learning = args.run in ["DQN", "APEX"]
+    if q_learning:
         ModelCatalog.register_custom_model("min_child_q_func", MinChildQFunc)
         extra_config = {
             "model": {
@@ -316,34 +349,37 @@ if __name__ == "__main__":
             "hiddens": [],  # don't postprocess the action scores
             "dueling": False,
             "double_q": False,
-            "train_batch_size": 64,
+            "batch_mode": "truncate_episodes",
+        }
+        extra_env_config = {
             "leaf_value_fn": None,
+            "onehot_state": False,
         }
     elif args.run == "PPO":
         extra_config = {
             "entropy_coeff": 0.01,
         }
-    else:
-        extra_config = {}
 
     run_experiments({
         "neurocuts-env":  {
             "run": args.run,
             "env": "tree_env",
-            "config": {
+            "config": dict({
                 "num_workers": args.num_workers,
                 "batch_mode": "complete_episodes",
                 "observation_filter": "NoFilter",
                 "callbacks": {
                     "on_episode_end": tune.function(on_episode_end),
+                    "on_sample_end": tune.function(erase_done_values)
+                        if q_learning else None,
                 },
                 "env_config": dict({
-                    "encode_next_state": args.run in ["DQN", "APEX"],
+                    "q_learning": q_learning,
                     "rules": os.path.abspath("classbench/{}".format(args.env)),
                     "mode": "dfs",
                     "onehot_state": True,
                     "leaf_value_fn": grid_search([None, "hicuts"]),
-                }, **extra_config),
-            },
+                }, **extra_env_config),
+            }, **extra_config),
         },
     })
