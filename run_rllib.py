@@ -20,6 +20,7 @@ from hicuts import HiCuts
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--run", type=str, default="PPO")
+parser.add_argument("--gpu", type=bool, default=False)
 parser.add_argument("--env", type=str, default="acl1_100")
 parser.add_argument("--num-workers", type=int, default=0)
 
@@ -183,7 +184,7 @@ class TreeEnv(MultiAgentEnv):
                 obs[0] = self._encode_child_state(self.tree.root)
                 rew[0] = -1
             else:
-                zero_state = [1, self._zeros()]
+                zero_state = self._zeros()
                 rew = self.compute_rewards()
                 obs = {node_id: zero_state for node_id in rew.keys()}
                 info = {node_id: {} for node_id in rew.keys()}
@@ -355,11 +356,20 @@ if __name__ == "__main__":
                 "custom_model": "min_child_q_func",
             },
             "hiddens": [],  # don't postprocess the action scores
+            "train_batch_size": 32,
             "dueling": False,
-            "train_batch_size": 64,
             "double_q": False,
             "batch_mode": "truncate_episodes",
         }
+        if args.run == "APEX":
+            extra_config.update({
+                "train_batch_size": 512,
+                "num_gpus": 1 if args.gpu else 0,
+                "buffer_size": 50000,
+                "learning_starts": 5000,
+                "timesteps_per_iteration": 5000,
+                "min_iter_time_s": 5,
+            })
         extra_env_config = {
             "leaf_value_fn": None,
         }
