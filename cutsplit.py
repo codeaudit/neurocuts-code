@@ -31,10 +31,10 @@ class CutSplit(object):
                     dst_bins[i] += 1
 
         # separate rules based on src and dst ip ranges
-        # subset 0: small src ip, small dst ip
+        # subset 0: big src ip, big dst ip
         # subset 1: small src ip, big dst ip
         # subset 2: big src ip, small dst ip
-        # subset 3: big src ip, big dst ip
+        # subset 3: small src ip, small dst ip
         rule_subsets = [[] for i in range(4)]
         bin_size = 2**12
         src_bins = [0 for i in range(2**20)]
@@ -42,8 +42,8 @@ class CutSplit(object):
         for rule in rules:
             src_ip_range, dst_ip_range = compute_ip_ranges(rule)
 
-            if src_ip_range <= self.ip_threshold and \
-                    dst_ip_range <= self.ip_threshold:
+            if src_ip_range > self.ip_threshold and \
+                    dst_ip_range > self.ip_threshold:
                 rule_subsets[0].append(rule)
                 update_bins(rule, src_bins, dst_bins, bin_size)
             elif src_ip_range <= self.ip_threshold and \
@@ -57,6 +57,7 @@ class CutSplit(object):
             else:
                 rule_subsets[3].append(rule)
 
+        print(datetime.datetime.now(), "primary separate completed")
         # add subset 0 to other subsets if it is too small
         if len(rule_subsets[0]) <= self.leaf_threshold:
             for rule in rule_subsets[0]:
@@ -67,7 +68,9 @@ class CutSplit(object):
                     rule_subsets[2].append(rule)
             rule_subsets[0] = []
 
+        print(datetime.datetime.now(), "merge big rules completed, start merge small rules:",len(rule_subsets[3]))
         # add subset 3 to subset 1 and subset 2
+        smallrule_idx = 0
         for rule in rule_subsets[3]:
             src_sum = sum([1 for i in src_bins if i > self.leaf_threshold])
             dst_sum = sum([1 for i in dst_bins if i > self.leaf_threshold])
@@ -84,6 +87,11 @@ class CutSplit(object):
                         math.ceil(rule.ranges[3] / bin_size)):
                     dst_bins[i] += 1
 
+            smallrule_idx += 1
+            if smallrule_idx%100==0:
+                print(datetime.datetime.now(),"merge small rules idx:",smallrule_idx, " in ", len(rule_subsets[3]))
+
+        print(datetime.datetime.now(), "merge small rules completed")
         # sort rule by priority
         for rule_subset in rule_subsets:
             rule_subset.sort(key=lambda i: i.priority)
@@ -152,7 +160,25 @@ class CutSplit(object):
         return (cut_dimension, cut_position)
 
     def select_action_ficut(self, tree, node, cut_dimension):
-        return (cut_dimension, 1)
+        # compute the number of cuts
+        range_left = node.ranges[cut_dimension*2]
+        range_right = node.ranges[cut_dimension*2+1]
+
+        cut_num = min(2, range_right - range_left)
+        while True:
+            sm_C = cut_num
+            range_per_cut = math.ceil((range_right - range_left) / cut_num)
+            for rule in node.rules:
+                rule_range_left = max(rule.ranges[cut_dimension*2], range_left)
+                rule_range_right = min(rule.ranges[cut_dimension*2+1], range_right)
+                sm_C += (rule_range_right - range_left - 1) // range_per_cut - \
+                    (rule_range_left - range_left) // range_per_cut + 1
+            if sm_C < self.spfac * len(node.rules) and \
+                    cut_num * 2 <= range_right - range_left:
+                cut_num *= 2
+            else:
+                break
+        return (cut_dimension, cut_num)
 
     def build_tree(self, rules, cut_algorithm, cut_dimension):
 
@@ -187,25 +213,27 @@ class CutSplit(object):
                 print(datetime.datetime.now(),
                     "Depth:", tree.get_depth(),
                     "Remaining nodes:", len(tree.nodes_to_cut))
-        return tree.compute_result()
+        return tree.compute_result(is_efficuts = True)
 
     def train(self):
         print(datetime.datetime.now(), "CutSplit starts")
         rule_subsets = self.separate_rules(self.rules)
-
+        print(datetime.datetime.now(), "Separate rules completed")
         result = {"memory_access": 0, "bytes_per_rule": 0}
         for i, rule_subset in enumerate(rule_subsets):
             if len(rule_subset) == 0:
                 continue
 
-            cut_algorithm = "ficut" if i == 0 else "hypersplit"
+            cut_algorithm = "hypersplit" if i == 0 else "ficuts"
             cut_dimension = 0 if i == 1 else 1
             result_subset = self.build_tree(rule_subset, cut_algorithm, cut_dimension)
             result["memory_access"] += result_subset["memory_access"]
+            print("subset mem access:",result_subset["memory_access"])
             result["bytes_per_rule"] += result_subset["bytes_per_rule"] * len(rule_subset)
         result["bytes_per_rule"] /= len(self.rules)
 
-        print("%s Memory access:%d Bytes per rule: %f" %
+        print("%s Memory access:%d Bytes per rule: %d" %
             (datetime.datetime.now(),
             result["memory_access"],
-            result["bytes_per_rule"]))
+            round(result["bytes_per_rule"])))
+
