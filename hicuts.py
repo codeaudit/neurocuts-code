@@ -50,15 +50,13 @@ class HiCuts(object):
         return (cut_dimension, cut_num)
 
     def train(self):
-        print(datetime.datetime.now(), "HiCuts starts")
+        print(datetime.datetime.now(), "Algorithm HiCuts")
         tree = self.build_tree()
         result = tree.compute_result()
-        print("%s Depth:%d Memory access:%d Bytes per rule: %f" %
+        print("%s Result %d %f" %
             (datetime.datetime.now(),
-            tree.get_depth(),
             result["memory_access"],
             result["bytes_per_rule"]))
-        #print(tree)
 
     def build_tree(self):
         tree = Tree(self.rules, self.leaf_threshold,

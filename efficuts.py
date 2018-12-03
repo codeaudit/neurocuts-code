@@ -171,6 +171,9 @@ class EffiCuts(object):
             if len(rule_subset) > 0:
                 result_subsets.append(rule_subset)
 
+            # sort rules by priority
+            rule_subset.sort(key=lambda i: i.priority)
+
         return result_subsets
 
     def train(self):
@@ -185,7 +188,7 @@ class EffiCuts(object):
             result["bytes_per_rule"] += result_subset["bytes_per_rule"] * len(rule_subset)
         result["bytes_per_rule"] /= len(self.rules)
 
-        print("%s Memory access:%d Bytes per rule: %f" %
+        print("%s Result %d %f" %
             (datetime.datetime.now(),
             result["memory_access"],
             result["bytes_per_rule"]))

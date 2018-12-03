@@ -129,7 +129,7 @@ class HyperCuts(object):
             result_rset["bytes_per_rule"] * len(rules_rset)) / \
             len(self.rules)
 
-        print("%s Memory access:%d Bytes per rule: %f" %
+        print("%s Result %d %f" %
             (datetime.datetime.now(),
             result["memory_access"],
             result["bytes_per_rule"]))

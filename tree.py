@@ -287,6 +287,36 @@ class Tree:
         self.update_tree(node, children)
         return children
 
+    def cut_current_node_split(self, cut_dimension, cut_position):
+        self.depth = max(self.depth, self.current_node.depth + 1)
+        node = self.current_node
+        node.action = (cut_dimension, cut_position)
+        range_left = node.ranges[cut_dimension*2]
+        range_right = node.ranges[cut_dimension*2+1]
+        range_per_cut = cut_position - range_left
+
+        children = []
+        for i in range(2):
+            child_ranges = node.ranges.copy()
+            child_ranges[cut_dimension*2] = range_left + i * range_per_cut
+            child_ranges[cut_dimension*2+1] = min(range_right,
+                range_left + (i+1) * range_per_cut)
+
+            child_rules = []
+            for rule in node.rules:
+                if rule.is_intersect(cut_dimension,
+                    child_ranges[cut_dimension*2],
+                    child_ranges[cut_dimension*2+1]):
+                    child_rules.append(rule)
+
+            child = self.create_node(self.node_count, child_ranges, child_rules, node.depth + 1)
+            children.append(child)
+            self.node_count += 1
+
+        self.update_tree(node, children)
+        return children
+        return
+
     def get_next_node(self):
         self.nodes_to_cut.pop()
         if len(self.nodes_to_cut) > 0:
