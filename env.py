@@ -3,11 +3,15 @@ import collections
 import numpy as np
 import os
 from gym.spaces import Tuple, Box, Discrete
+import tensorflow as tf
+import tensorflow.contrib.slim as slim
 
 from ray.rllib.env import MultiAgentEnv
 from ray.rllib.models import Model, ModelCatalog
 import ray
 from ray import tune
+from ray.rllib.models.misc import normc_initializer
+from ray.rllib.models.preprocessors import TupleFlatteningPreprocessor
 from ray.tune import run_experiments, grid_search
 from ray.tune.registry import register_env
 
@@ -16,6 +20,7 @@ from hicuts import HiCuts
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--run", type=str, default="PPO")
+parser.add_argument("--env", type=str, default="acl1_100")
 parser.add_argument("--num-workers", type=int, default=0)
 
 
@@ -51,16 +56,19 @@ class TreeEnv(MultiAgentEnv):
         self.encode_next_state = encode_next_state
         if encode_next_state:
             num_actions = 5 * max_cuts_per_dimension
+            self.max_cuts_per_dimension = max_cuts_per_dimension
             self.max_children = 2**max_cuts_per_dimension
             self.action_space = Discrete(num_actions)
             if onehot_state:
-                self.observation_space = Tuple([
-                    Discrete(max_children),  # num valid children
-                    Box(0, 1, (208, self.max_children), dtype=np.float32)])
+                observation_space = Tuple([
+                    Discrete(self.max_children + 1),  # num valid children
+                    Box(0, 1, (self.max_children, 208), dtype=np.float32)])
             else:
-                self.observation_space = Tuple([
-                    Discrete(max_children),
-                    Box(0, 1, (26, self.max_children), dtype=np.float32)])
+                observation_space = Tuple([
+                    Discrete(self.max_children + 1),
+                    Box(0, 1, (self.max_children, 26), dtype=np.float32)])
+            self.preprocessor = TupleFlatteningPreprocessor(observation_space)
+            self.observation_space = self.preprocessor.observation_space
         else:
             self.action_space = Tuple(
                 [Discrete(5), Discrete(max_cuts_per_dimension)])
@@ -92,18 +100,18 @@ class TreeEnv(MultiAgentEnv):
         if self.encode_next_state:
             state = [self._zeros() for _ in range(self.max_children)]
             state[0] = node.get_state()
-            return [0, state]
+            return self.preprocessor.transform([1, state])
         else:
             return node.get_state()
 
     def _encode_child_state(self, node):
         assert self.encode_next_state
-        children = self.child_map[node]
-        assert len(children) < self.max_children, children
+        children = self.child_map[node.id]
+        assert len(children) <= self.max_children, children
         state = [self._zeros() for _ in range(self.max_children)]
         for i, c in enumerate(children):
-            state[i] = c.get_state()
-        return [len(children), state]
+            state[i] = self.node_map[c].get_state()
+        return self.preprocessor.transform([len(children), state])
 
     def step(self, action_dict):
         if self.mode == "dfs":
@@ -112,6 +120,10 @@ class TreeEnv(MultiAgentEnv):
         new_children = []
         for node_id, action in action_dict.items():
             node = self.node_map[node_id]
+            if np.isscalar(action):
+                cut_dimension = int(action) % 5
+                cut_num = int(action) // self.max_cuts_per_dimension
+                action = [cut_dimension, cut_num]
             cut_dimension, cut_num = self.action_tuple_to_cut(node, action)
             children = self.tree.cut_node(node, cut_dimension, int(cut_num))
             self.num_actions += 1
@@ -156,7 +168,7 @@ class TreeEnv(MultiAgentEnv):
             else:
                 needs_split = new_children
             return (
-                {s.id: s.get_state() for s in needs_split},
+                {s.id: self._encode_state(s) for s in needs_split},
                 {s.id: 0 for s in needs_split},
                 {"__all__": False},
                 {s.id: {} for s in needs_split})
@@ -219,8 +231,68 @@ def on_episode_end(info):
 
 
 class MinChildQFunc(Model):
+    """A Q function that internally takes the argmin over nodes in the state.
+
+    The input states are (num_nodes, node_states).
+
+    When num_nodes == 1, the returned action scores are simply that of a
+    normal q function over node_states[0]. This Q output is hence valid for
+    selecting an action via argmax.
+
+    When num_nodes > 1, the returned action scores are uniformly the min
+    over the max Q values of all children. This Q output is only valid for
+    computing the Q target value = min child max a' Q(s{t+1}{child}, a').
+    """
+
     def _build_layers_v2(self, input_dict, num_outputs, options):
-        obs = input_dict["obs"]
+        num_nodes = input_dict["obs"][0]  # shape [BATCH]
+        node_states = input_dict["obs"][1]  # shape [BATCH, MAX_CHILD, STATE]
+        max_children = node_states.get_shape().as_list()[-2]
+
+        # shape [BATCH * MAX_CHILD, STATE]
+        flat_shape = [-1, node_states.get_shape().as_list()[-1]]
+        nodes_flat = tf.reshape(node_states, flat_shape)
+
+        # Mask for invalid nodes (use tf.float32.min for stability)
+        action_mask = tf.cast(
+            tf.sequence_mask(num_nodes, max_children), tf.float32)
+        flat_inf_mask = tf.reshape(
+            tf.maximum(tf.log(action_mask), tf.float32.min), flat_shape)
+
+        # push flattened node states through the Q network
+        last_layer = nodes_flat
+        for i, size in enumerate([256, 256]):
+            label = "fc{}".format(i)
+            last_layer = slim.fully_connected(
+                last_layer,
+                size,
+                weights_initializer=normc_initializer(1.0),
+                activation_fn=tf.nn.tanh,
+                scope=label)
+
+        # shape [BATCH * MAX_CHILD, NUM_ACTIONS]
+        action_scores = slim.fully_connected(
+            last_layer,
+            num_outputs,
+            weights_initializer=normc_initializer(0.01),
+            activation_fn=None,
+            scope="fc_out")
+
+        # shape [BATCH, MAX_CHILD, NUM_ACTIONS]
+        masked_scores = tf.reshape(
+            action_scores + flat_inf_mask,
+            node_states.get_shape().as_list()[:-1] + [num_outputs])
+
+        # case 1: emit [BATCH, NUM_ACTIONS <- actual scores for node 0]
+        action_out1 = masked_scores[:, 0, :]
+
+        # case 2: emit [BATCH, NUM_ACTIONS <- uniform; min over all nodes]
+        child_min_max = tf.reduce_min(
+            tf.reduce_max(masked_scores, axis=2), axis=1)
+        action_out2 = tf.tile(tf.expand_dims(child_min_max), num_outputs)
+
+        output = tf.where(tf.equal(num_nodes, 1), action_out1, action_out2)
+        return output, output
 
 
 if __name__ == "__main__":
@@ -232,6 +304,7 @@ if __name__ == "__main__":
             env_config["rules"],
             onehot_state=env_config["onehot_state"],
             encode_next_state=env_config["encode_next_state"],
+            leaf_value_fn=env_config["leaf_value_fn"],
             mode=env_config["mode"]))
 
     if args.run in ["DQN", "APEX"]:
@@ -244,6 +317,11 @@ if __name__ == "__main__":
             "dueling": False,
             "double_q": False,
             "train_batch_size": 64,
+            "leaf_value_fn": None,
+        }
+    elif args.run == "PPO":
+        extra_config = {
+            "entropy_coeff": 0.01,
         }
     else:
         extra_config = {}
@@ -261,10 +339,10 @@ if __name__ == "__main__":
                 },
                 "env_config": dict({
                     "encode_next_state": args.run in ["DQN", "APEX"],
-                    "rules": os.path.abspath("classbench/acl1_500"),
+                    "rules": os.path.abspath("classbench/{}".format(args.env)),
                     "mode": "dfs",
                     "onehot_state": True,
-                    "leaf_value_fn": grid_search(["hicuts", None]),
+                    "leaf_value_fn": grid_search([None, "hicuts"]),
                 }, **extra_config),
             },
         },
