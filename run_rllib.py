@@ -43,7 +43,7 @@ class TreeEnv(MultiAgentEnv):
             rules_file,
             leaf_threshold=16,
             onehot_state=True,
-            mode="dfs",
+            order="dfs",
             max_cuts_per_dimension=5,
             max_actions_per_episode=1000,
             leaf_value_fn="hicuts",
@@ -57,7 +57,7 @@ class TreeEnv(MultiAgentEnv):
         else:
             raise ValueError("Unknown value fn: {}".format(leaf_value_fn))
 
-        self.mode = mode
+        self.order = order
         self.rules = load_rules_from_file(rules_file)
         self.leaf_threshold = leaf_threshold
         self.onehot_state = onehot_state
@@ -134,7 +134,7 @@ class TreeEnv(MultiAgentEnv):
             [max(1, len(children)), finished, state])
 
     def step(self, action_dict):
-        if self.mode == "dfs":
+        if self.order == "dfs":
             assert len(action_dict) == 1  # one at a time processing
 
         new_children = []
@@ -156,7 +156,7 @@ class TreeEnv(MultiAgentEnv):
                     num_leaf += 1
             self.child_map[node_id] = [c.id for c in children]
 
-        if self.mode == "bfs":
+        if self.order == "bfs":
             nodes_remaining = new_children
         else:
             node = self.tree.get_current_node()
@@ -194,7 +194,7 @@ class TreeEnv(MultiAgentEnv):
             }
             return obs, rew, {"__all__": True}, info
         else:
-            if self.mode == "dfs":
+            if self.order == "dfs":
                 needs_split = [self.tree.get_current_node()]
             else:
                 needs_split = new_children
@@ -342,7 +342,7 @@ if __name__ == "__main__":
             onehot_state=env_config["onehot_state"],
             q_learning=env_config["q_learning"],
             leaf_value_fn=env_config["leaf_value_fn"],
-            mode=env_config["mode"]))
+            order=env_config["order"]))
 
     extra_config = {}
     extra_env_config = {}
@@ -384,7 +384,7 @@ if __name__ == "__main__":
                 "env_config": dict({
                     "q_learning": q_learning,
                     "rules": os.path.abspath("classbench/{}".format(args.env)),
-                    "mode": "dfs",
+                    "order": "dfs",
                     "onehot_state": True,
                     "leaf_value_fn": grid_search([None, "hicuts"]),
                 }, **extra_env_config),
