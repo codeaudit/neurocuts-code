@@ -25,6 +25,19 @@ parser.add_argument("--num-workers", type=int, default=0)
 
 
 class TreeEnv(MultiAgentEnv):
+    """Two modes: q_learning and on-policy.
+
+    If q_learning=True, each cut in the tree is recorded as -1 reward and a
+    transition is returned on each step.
+    
+    In on-policy mode, we aggregate rewards at the end of the episode and
+    assign each cut its reward based on the policy performance (actual depth).
+
+    Both modes are modeled as a multi-agent environment. Each "cut" in the tree
+    is an action taken by a different agent. All the agents share the same
+    policy.
+    """
+
     def __init__(
             self,
             rules_file,
@@ -343,12 +356,12 @@ if __name__ == "__main__":
             },
             "hiddens": [],  # don't postprocess the action scores
             "dueling": False,
+            "train_batch_size": 64,
             "double_q": False,
             "batch_mode": "truncate_episodes",
         }
         extra_env_config = {
             "leaf_value_fn": None,
-            "onehot_state": False,
         }
     elif args.run == "PPO":
         extra_config = {
