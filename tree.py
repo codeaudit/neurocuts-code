@@ -1,7 +1,7 @@
 import math
 import re
 
-import torch
+import numpy as np
 
 class Rule:
     def __init__(self, priority, ranges):
@@ -78,29 +78,53 @@ def load_rules_from_file(file_name):
             proto_begin, proto_end+1]))
     return rules
 
+
+def to_bits(value, n):
+    assert value == int(value)
+    b = list(bin(int(value))[2:])
+    assert len(b) <= n, (value, b, n)
+    return [0.0] * (n - len(b)) + [float(i) for i in b]
+
+
 class Node:
-    def __init__(self, id, ranges, rules, depth):
+    def __init__(self, id, ranges, rules, depth, onehot_state=False):
         self.id = id
         self.ranges = ranges
         self.rules = rules
         self.depth = depth
         self.children = []
-        self.compute_state()
+        self.compute_state(onehot_state)
         self.action = None
         self.pushup_rules = None
 
-    def compute_state(self):
-        self.state = []
-        for i in range(4):
-            for j in range(4):
-                self.state.append(((self.ranges[i] - i % 2)  >> (j * 8)) & 0xff)
-        for i in range(4):
-            for j in range(2):
-                self.state.append(((self.ranges[i+4] - i % 2) >> (j * 8)) & 0xff)
-        self.state.append(self.ranges[8])
-        self.state.append(self.ranges[9] - 1)
-        self.state = [[i / 256 for i in self.state]]
-        self.state = torch.tensor(self.state)
+    def compute_state(self, onehot=False):
+        if onehot:
+            self.state = []
+            self.state.extend(to_bits(self.ranges[0], 32))
+            self.state.extend(to_bits(self.ranges[1] - 1, 32))
+            self.state.extend(to_bits(self.ranges[2], 32))
+            self.state.extend(to_bits(self.ranges[3] - 1, 32))
+            assert len(self.state) == 128, len(self.state)
+            self.state.extend(to_bits(self.ranges[4], 16))
+            self.state.extend(to_bits(self.ranges[5] - 1, 16))
+            self.state.extend(to_bits(self.ranges[6], 16))
+            self.state.extend(to_bits(self.ranges[7] - 1, 16))
+            assert len(self.state) == 192, len(self.state)
+            self.state.extend(to_bits(self.ranges[8], 8))
+            self.state.extend(to_bits(self.ranges[9] - 1, 8))
+            assert len(self.state) == 208, len(self.state)
+        else:
+            self.state = []
+            for i in range(4):
+                for j in range(4):
+                    self.state.append(((int(self.ranges[i]) - i % 2)  >> (j * 8)) & 0xff)
+            for i in range(4):
+                for j in range(2):
+                    self.state.append(((int(self.ranges[i+4]) - i % 2) >> (j * 8)) & 0xff)
+            self.state.append(self.ranges[8])
+            self.state.append(self.ranges[9] - 1)
+            self.state = [i / 256 for i in self.state]
+        self.state = np.array(self.state)
 
     def get_state(self):
         return self.state
@@ -126,10 +150,12 @@ class Tree:
             "rule_overlay"      : False,
             "region_compaction" : False,
             "rule_pushup"       : False,
-            "equi_dense"        : False}):
+            "equi_dense"        : False},
+        onehot_state = False):
         # hyperparameters
         self.leaf_threshold = leaf_threshold
         self.refinements = refinements
+        self.onehot_state = onehot_state
 
         self.rules = rules
         self.root = self.create_node(0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1)
@@ -141,7 +167,7 @@ class Tree:
         self.node_count = 1
 
     def create_node(self, id, ranges, rules, depth):
-        node = Node(id, ranges, rules, depth)
+        node = Node(id, ranges, rules, depth, self.onehot_state)
 
         if self.refinements["rule_overlay"]:
             self.refinement_rule_overlay(node)
@@ -178,8 +204,10 @@ class Tree:
         self.current_node = self.nodes_to_cut[-1]
 
     def cut_current_node(self, cut_dimension, cut_num):
-        self.depth = max(self.depth, self.current_node.depth + 1)
-        node = self.current_node
+        return self.cut_node(self.current_node, cut_dimension, cut_num)
+
+    def cut_node(self, node, cut_dimension, cut_num):
+        self.depth = max(self.depth, node.depth + 1)
         node.action = (cut_dimension, cut_num)
         range_left = node.ranges[cut_dimension*2]
         range_right = node.ranges[cut_dimension*2+1]
@@ -187,7 +215,7 @@ class Tree:
 
         children = []
         for i in range(cut_num):
-            child_ranges = node.ranges.copy()
+            child_ranges = list(node.ranges)
             child_ranges[cut_dimension*2] = range_left + i * range_per_cut
             child_ranges[cut_dimension*2+1] = min(range_right,
                 range_left + (i+1) * range_per_cut)
@@ -223,7 +251,7 @@ class Tree:
         children = []
         while True:
             # compute child ranges
-            child_ranges = node.ranges.copy()
+            child_ranges = list(node.ranges)
             for i in range(len(cut_dimensions)):
                 dimension = cut_dimensions[i]
                 child_ranges[dimension*2] = node.ranges[dimension*2] + \
@@ -362,7 +390,7 @@ class Tree:
         if len(node.rules) == 0:
             return
 
-        new_ranges = node.rules[0].ranges.copy()
+        new_ranges = list(node.rules[0].ranges)
         for rule in node.rules[1:]:
             for i in range(5):
                 new_ranges[i*2] = min(new_ranges[i*2], rule.ranges[i*2])
@@ -389,7 +417,7 @@ class Tree:
                 if len(node.children) == 0:
                     node.pushup_rules = set(node.rules)
                 else:
-                    node.pushup_rules = node.children[0].pushup_rules.copy()
+                    node.pushup_rules = list(node.children[0].pushup_rules)
                     for j in range(1, len(node.children)):
                         node.pushup_rules = node.pushup_rules.intersection(node.children[j].pushup_rules)
                     for child in node.children:
@@ -401,8 +429,8 @@ class Tree:
         max_rule_count = -1
         for node in nodes:
             nodes_copy.append(
-                Node(node.id, node.ranges.copy(),
-                    node.rules.copy(), node.depth))
+                Node(node.id, list(node.ranges),
+                    list(node.rules), node.depth, self.onehot_state))
             max_rule_count = max(max_rule_count, len(node.rules))
         while True:
             flag = True
