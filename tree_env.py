@@ -3,7 +3,6 @@ import numpy as np
 from gym.spaces import Tuple, Box, Discrete
 
 from ray.rllib.env import MultiAgentEnv
-from ray.rllib.models.preprocessors import TupleFlatteningPreprocessor
 
 from tree import Tree, load_rules_from_file
 from hicuts import HiCuts
@@ -58,17 +57,15 @@ class TreeEnv(MultiAgentEnv):
             self.max_children = 2**max_cuts_per_dimension
             self.action_space = Discrete(num_actions)
             if onehot_state:
-                observation_space = Tuple([
+                self.observation_space = Tuple([
                     Box(1, self.max_children, (), dtype=np.float32),  # nchild
                     Box(0, 1, (), dtype=np.float32),  # is finished
                     Box(0, 1, (self.max_children, 208), dtype=np.float32)])
             else:
-                observation_space = Tuple([
+                self.observation_space = Tuple([
                     Box(1, self.max_children, (), dtype=np.float32),
                     Box(0, 1, (), dtype=np.float32),
                     Box(0, 1, (self.max_children, 26), dtype=np.float32)])
-            self.preprocessor = TupleFlatteningPreprocessor(observation_space)
-            self.observation_space = self.preprocessor.observation_space
         else:
             self.action_space = Tuple(
                 [Discrete(5), Discrete(max_cuts_per_dimension)])
@@ -100,7 +97,7 @@ class TreeEnv(MultiAgentEnv):
         if self.q_learning:
             state = [self._zeros() for _ in range(self.max_children)]
             state[0] = node.get_state()
-            return self.preprocessor.transform([1, 0, state])
+            return [1, 0, state]
         else:
             return node.get_state()
 
@@ -115,8 +112,7 @@ class TreeEnv(MultiAgentEnv):
             state[i] = child.get_state()
             if not self.tree.is_leaf(child):
                 finished = 0
-        return self.preprocessor.transform(
-            [max(1, len(children)), finished, state])
+        return [max(1, len(children)), finished, state]
 
     def step(self, action_dict):
         if self.order == "dfs":
