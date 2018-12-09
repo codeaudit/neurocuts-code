@@ -45,7 +45,9 @@ if __name__ == "__main__":
             onehot_state=env_config["onehot_state"],
             q_learning=env_config["q_learning"],
             leaf_value_fn=env_config["leaf_value_fn"],
-            order=env_config["order"]))
+            order=env_config["order"],
+            max_actions_per_episode=env_config["max_actions"],
+            cut_weight=env_config["cut_weight"]))
 
     extra_config = {}
     extra_env_config = {}
@@ -99,7 +101,9 @@ if __name__ == "__main__":
                     "rules": os.path.abspath("classbench/{}".format(args.env)),
                     "order": "dfs",
                     "onehot_state": True,
-                    "leaf_value_fn": grid_search([None, "hicuts"]),
+                    "leaf_value_fn": None, #grid_search([None, "hicuts"]),
+                    "max_actions": 2000,
+                    "cut_weight": grid_search([0.0, 0.01, 0.05, 0.1]),
                 }, **extra_env_config),
             }, **extra_config),
         },

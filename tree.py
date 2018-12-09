@@ -214,6 +214,7 @@ class Tree:
         range_per_cut = math.ceil((range_right - range_left) / cut_num)
 
         children = []
+        assert cut_num > 0, (cut_dimension, cut_num)
         for i in range(cut_num):
             child_ranges = list(node.ranges)
             child_ranges[cut_dimension*2] = range_left + i * range_per_cut

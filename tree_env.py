@@ -29,9 +29,10 @@ class TreeEnv(MultiAgentEnv):
             onehot_state=True,
             order="dfs",
             max_cuts_per_dimension=5,
-            max_actions_per_episode=1000,
+            max_actions_per_episode=2000,
             leaf_value_fn="hicuts",
-            q_learning=False):
+            q_learning=False,
+            cut_weight=0.0):
 
         if leaf_value_fn == "hicuts":
             self.leaf_value_fn = lambda rules: HiCuts(rules).get_depth()
@@ -42,6 +43,7 @@ class TreeEnv(MultiAgentEnv):
             raise ValueError("Unknown value fn: {}".format(leaf_value_fn))
 
         self.order = order
+        self.cut_weight = cut_weight
         self.rules = load_rules_from_file(rules_file)
         self.leaf_threshold = leaf_threshold
         self.onehot_state = onehot_state
@@ -77,7 +79,13 @@ class TreeEnv(MultiAgentEnv):
     def reset(self):
         self.num_actions = 0
         self.tree = Tree(
-            self.rules, self.leaf_threshold, onehot_state=self.onehot_state)
+            self.rules, self.leaf_threshold, refinements = {
+                "node_merging"      : True,
+                "rule_overlay"      : True,
+                "region_compaction" : False,
+                "rule_pushup"       : False,
+                "equi_dense"        : False,
+            }, onehot_state=self.onehot_state)
         self.node_map = {
             self.tree.root.id: self.tree.root,
         }
@@ -121,6 +129,7 @@ class TreeEnv(MultiAgentEnv):
         new_children = []
         for node_id, action in action_dict.items():
             node = self.node_map[node_id]
+            orig_action = action
             if np.isscalar(action):
                 cut_dimension = int(action) % 5
                 cut_num = int(action) // self.max_cuts_per_dimension
@@ -189,11 +198,14 @@ class TreeEnv(MultiAgentEnv):
         cut_dimension = action[0]
         range_left = node.ranges[cut_dimension*2]
         range_right = node.ranges[cut_dimension*2+1]
-        cut_num = min(2**(action[1] + 1), range_right - range_left)
+        cut_num = max(
+            2,
+            min(2**(action[1] + 1), range_right - range_left))
         return (cut_dimension, cut_num)
 
     def compute_rewards(self):
         depth_to_go = collections.defaultdict(int)
+        cuts_to_go = collections.defaultdict(int)
         num_updates = 1
         while num_updates > 0:
             num_updates = 0
@@ -201,18 +213,26 @@ class TreeEnv(MultiAgentEnv):
                 if node_id not in depth_to_go:
                     if self.tree.is_leaf(node):
                         depth_to_go[node_id] = 0  # is leaf
+                        cuts_to_go[node_id] = 0
                     elif node_id not in self.child_map:
                         depth_to_go[node_id] = 0  # no children
+                        cuts_to_go[node_id] = 0
                     else:
                         depth_to_go[node_id] = self.leaf_value_fn(node.rules)
+                        cuts_to_go[node_id] = 0
                 if node_id in self.child_map:
                     max_child_depth = 1 + max(
                         [depth_to_go[c] for c in self.child_map[node_id]])
                     if max_child_depth > depth_to_go[node_id]:
                         depth_to_go[node_id] = max_child_depth
                         num_updates += 1
+                    sum_child_cuts = len(self.child_map[node_id]) + sum(
+                        [cuts_to_go[c] for c in self.child_map[node_id]])
+                    if sum_child_cuts > cuts_to_go[node_id]:
+                        cuts_to_go[node_id] = sum_child_cuts
+                        num_updates += 1
         rew = {
-            node_id: -depth
+            node_id: -depth - (self.cut_weight * cuts_to_go[node_id])
             for (node_id, depth) in depth_to_go.items()
                 if node_id in self.child_map
         }
