@@ -213,7 +213,7 @@ class CutSplit(object):
                 print(datetime.datetime.now(),
                     "Depth:", tree.get_depth(),
                     "Remaining nodes:", len(tree.nodes_to_cut))
-        return tree.compute_result(is_efficuts = True)
+        return tree.compute_result()
 
     def train(self):
         print(datetime.datetime.now(), "CutSplit starts")
@@ -236,4 +236,3 @@ class CutSplit(object):
             (datetime.datetime.now(),
             result["memory_access"],
             round(result["bytes_per_rule"])))
-

@@ -9,10 +9,10 @@ from cutsplit import *
 seed_files = []
 for i in range(1, 6):
     seed_files.append("acl%d_seed" % i)
-for i in range(1, 6):
-    seed_files.append("fw%d_seed" % i)
-for i in range(1, 3):
-    seed_files.append("ipc%d_seed" % i)
+#for i in range(1, 6):
+#    seed_files.append("fw%d_seed" % i)
+#for i in range(1, 3):
+#    seed_files.append("ipc%d_seed" % i)
 
 def exe_cmd(cmd):
     #print "\t", cmd

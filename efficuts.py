@@ -107,7 +107,7 @@ class EffiCuts(object):
                 print(datetime.datetime.now(),
                     "Depth:", tree.get_depth(),
                     "Remaining nodes:", len(tree.nodes_to_cut))
-        return tree.compute_result(is_efficuts = False)
+        return tree.compute_result()
 
     def separate_rules(self, rules):
         rule_subsets = [[] for i in range(32)]

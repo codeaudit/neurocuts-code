@@ -417,7 +417,7 @@ class Tree:
                 if len(node.children) == 0:
                     node.pushup_rules = set(node.rules)
                 else:
-                    node.pushup_rules = list(node.children[0].pushup_rules)
+                    node.pushup_rules = set(node.children[0].pushup_rules)
                     for j in range(1, len(node.children)):
                         node.pushup_rules = node.pushup_rules.intersection(node.children[j].pushup_rules)
                     for child in node.children:
@@ -460,16 +460,18 @@ class Tree:
             nodes = nodes_copy
         return nodes
 
-    def compute_result(self, is_efficuts = False):
+    def compute_result(self):
         if self.refinements["rule_pushup"]:
             self.refinement_rule_pushup()
 
         # memory space
-        # header: 2 bytes
-        # region boundary for non-leaf: 16 bytes
-        # each child pointer: 4 bytes
-        # each rule pointer: 4 bytes
-        # each rule: 16 bytes
+        # non-leaf: 2 + 16 + 4 * child num
+        # leaf: 2 + 16 * rule num
+        # details:
+        #     header: 2 bytes
+        #     region boundary for non-leaf: 16 bytes
+        #     each child pointer: 4 bytes
+        #     each rule: 16 bytes
         result = {"bytes_per_rule": 0, "memory_access": 0}
         nodes = [self.root]
         while len(nodes) != 0:
@@ -478,32 +480,18 @@ class Tree:
                 next_layer_nodes.extend(node.children)
 
                 # compute bytes per rule
-                x = result["bytes_per_rule"]
-                result["bytes_per_rule"] += 2 + len(node.children) * 4
-                if not self.is_leaf(node):
-                    result["bytes_per_rule"] += 16
-
-                if self.refinements["rule_pushup"]:
-                    result["bytes_per_rule"] += len(node.pushup_rules) * 4
-                elif self.is_leaf(node):
-                    result["bytes_per_rule"] += len(node.rules) * 4
-
-                    if is_efficuts:
-                        result["bytes_per_rule"] += len(node.rules) * 16
+                if self.is_leaf(node):
+                    result["bytes_per_rule"] += 2 + 16 + 4 * len(node.children)
+                else:
+                    result["bytes_per_rule"] += 2 + 16 * len(node.children)
 
                 # compute memory access
                 if self.is_leaf(node):
-                    if is_efficuts:
                         result["memory_access"] = max(result["memory_access"],
                             node.depth)
-                    else:
-                        result["memory_access"] = max(result["memory_access"],
-                            (node.depth - 1)*2 + 1 + len(node.rules))
 
             nodes = next_layer_nodes
-        result["bytes_per_rule"] = result["bytes_per_rule"] / len(self.rules) + 16
-        if is_efficuts:
-            result["bytes_per_rule"] -= 16
+        result["bytes_per_rule"] = result["bytes_per_rule"] / len(self.rules)
         return result
 
     def print_layers(self, layer_num = 5):
