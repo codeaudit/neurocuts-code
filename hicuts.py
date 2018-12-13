@@ -51,6 +51,14 @@ class HiCuts(object):
 
     def train(self):
         print(datetime.datetime.now(), "Algorithm HiCuts")
+        tree = self.build_tree()
+        result = tree.compute_result()
+        print("%s Result %d %f" %
+            (datetime.datetime.now(),
+            result["memory_access"],
+            result["bytes_per_rule"]))
+
+    def build_tree(self):
         tree = Tree(self.rules, self.leaf_threshold,
             {"node_merging"     : True,
             "rule_overlay"      : True,
@@ -72,9 +80,7 @@ class HiCuts(object):
                 print(datetime.datetime.now(),
                     "Depth:", tree.get_depth(),
                     "Remaining nodes:", len(tree.nodes_to_cut))
-        result = tree.compute_result()
-        print("%s Result %d %f" %
-            (datetime.datetime.now(),
-            result["memory_access"],
-            result["bytes_per_rule"]))
-        #print(tree)
+        return tree
+
+    def get_depth(self):
+        return self.build_tree().get_depth()

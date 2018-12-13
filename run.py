@@ -35,21 +35,21 @@ def run_neurocuts():
     neuro_cuts.train()
 
 def run_hicuts():
-    for i in ["100", "500", "1000"]:
+    for i in ["100", "200", "500", "1000"]:
         print(i)
         rules = load_rules_from_file("classbench/acl1_%s" % i)
         cuts = HiCuts(rules)
         cuts.train()
 
 def run_hypercuts():
-    for i in ["100", "500", "1000"]:
+    for i in ["100", "200", "500"]:
         print(i)
         rules = load_rules_from_file("classbench/acl1_%s" % i)
         cuts = HyperCuts(rules)
         cuts.train()
 
 def run_efficuts():
-    for i in ["100", "500", "1000"]:
+    for i in ["100", "200", "500"]:
         print(i)
         rules = load_rules_from_file("classbench/acl1_%s" % i)
         cuts = EffiCuts(rules)
