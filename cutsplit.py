@@ -56,8 +56,8 @@ class CutSplit(object):
                 update_bins(rule, src_bins, dst_bins, bin_size)
             else:
                 rule_subsets[3].append(rule)
-
         print(datetime.datetime.now(), "primary separate completed")
+
         # add subset 0 to other subsets if it is too small
         if len(rule_subsets[0]) <= self.leaf_threshold:
             for rule in rule_subsets[0]:
@@ -67,8 +67,10 @@ class CutSplit(object):
                 else:
                     rule_subsets[2].append(rule)
             rule_subsets[0] = []
+        print(datetime.datetime.now(),
+            "merge big rules completed, start merge small rules:",
+            len(rule_subsets[3]))
 
-        print(datetime.datetime.now(), "merge big rules completed, start merge small rules:",len(rule_subsets[3]))
         # add subset 3 to subset 1 and subset 2
         smallrule_idx = 0
         for rule in rule_subsets[3]:
@@ -88,7 +90,7 @@ class CutSplit(object):
                     dst_bins[i] += 1
 
             smallrule_idx += 1
-            if smallrule_idx%100==0:
+            if smallrule_idx % 100 == 0:
                 print(datetime.datetime.now(),"merge small rules idx:",smallrule_idx, " in ", len(rule_subsets[3]))
 
         print(datetime.datetime.now(), "merge small rules completed")
@@ -181,10 +183,9 @@ class CutSplit(object):
         return (cut_dimension, cut_num)
 
     def build_tree(self, rules, cut_algorithm, cut_dimension):
-
         tree = Tree(rules, self.leaf_threshold,
-            {"node_merging"     : False,
-            "rule_overlay"      : False,
+            {"node_merging"     : True,
+            "rule_overlay"      : True,
             "region_compaction" : False,
             "rule_pushup"       : False,
             "equi_dense"        : False})
@@ -197,6 +198,7 @@ class CutSplit(object):
 
             if cut_algorithm == "ficut":
                 cut_dimension, cut_num = self.select_action_ficut(tree, node, cut_dimension)
+
                 # switch to hypersplit if the cut num is small
                 if cut_num < self.ficut_threshold:
                     cut_algorithm = "hypersplit"
@@ -216,9 +218,11 @@ class CutSplit(object):
         return tree.compute_result()
 
     def train(self):
-        print(datetime.datetime.now(), "CutSplit starts")
+        print(datetime.datetime.now(), "Algorithm CutSplit")
+
         rule_subsets = self.separate_rules(self.rules)
         print(datetime.datetime.now(), "Separate rules completed")
+
         result = {"memory_access": 0, "bytes_per_rule": 0}
         for i, rule_subset in enumerate(rule_subsets):
             if len(rule_subset) == 0:
@@ -228,11 +232,10 @@ class CutSplit(object):
             cut_dimension = 0 if i == 1 else 1
             result_subset = self.build_tree(rule_subset, cut_algorithm, cut_dimension)
             result["memory_access"] += result_subset["memory_access"]
-            print("subset mem access:",result_subset["memory_access"])
             result["bytes_per_rule"] += result_subset["bytes_per_rule"] * len(rule_subset)
         result["bytes_per_rule"] /= len(self.rules)
 
-        print("%s Memory access:%d Bytes per rule: %d" %
+        print("%s Result %d %f" %
             (datetime.datetime.now(),
             result["memory_access"],
-            round(result["bytes_per_rule"])))
+            result["bytes_per_rule"]))

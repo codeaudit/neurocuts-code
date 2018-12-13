@@ -315,7 +315,6 @@ class Tree:
 
         self.update_tree(node, children)
         return children
-        return
 
     def get_next_node(self):
         self.nodes_to_cut.pop()
@@ -483,7 +482,7 @@ class Tree:
                 if self.is_leaf(node):
                     result["bytes_per_rule"] += 2 + 16 + 4 * len(node.children)
                 else:
-                    result["bytes_per_rule"] += 2 + 16 * len(node.children)
+                    result["bytes_per_rule"] += 2 + 16 * len(node.rules)
 
                 # compute memory access
                 if self.is_leaf(node):
