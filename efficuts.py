@@ -107,7 +107,7 @@ class EffiCuts(object):
                 print(datetime.datetime.now(),
                     "Depth:", tree.get_depth(),
                     "Remaining nodes:", len(tree.nodes_to_cut))
-        return tree.compute_result(is_efficuts = True)
+        return tree.compute_result(is_efficuts = False)
 
     def separate_rules(self, rules):
         rule_subsets = [[] for i in range(32)]
@@ -177,7 +177,7 @@ class EffiCuts(object):
         return result_subsets
 
     def train(self):
-        print(datetime.datetime.now(), "EffiCuts starts")
+        print(datetime.datetime.now(), "Algorithm EffiCuts")
         rule_subsets = self.separate_rules(self.rules)
         rule_subsets = self.merge_rule_subsets(rule_subsets)
 

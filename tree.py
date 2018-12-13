@@ -340,7 +340,7 @@ class Tree:
         return nodes
 
     def refinement_rule_overlay(self, node):
-        if len(node.rules) == 0 or len(node.rules) > 10000:
+        if len(node.rules) == 0 or len(node.rules) > 1000:
             return
 
         new_rules = []

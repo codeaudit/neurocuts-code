@@ -64,7 +64,7 @@ def run_cutsplit():
 
 def run_all():
     for i in seed_files:
-        for j in [1000, 10000, 100000]:
+        for j in [1000]:
             print("%s Rules %s_%d" % (datetime.datetime.now(), i, j))
             for k in ["HiCuts", "HyperCuts", "EffiCuts"]:
                 rules = load_rules_from_file("classbench/%s_%d" % (i, j))
