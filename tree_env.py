@@ -179,7 +179,10 @@ class TreeEnv(MultiAgentEnv):
                 rew = self.compute_rewards(self.cut_weight)
                 obs = {node_id: zero_state for node_id in rew.keys()}
                 info = {node_id: {} for node_id in rew.keys()}
+            result = self.tree.compute_result()
             info[0] = {
+                "bytes_per_rule": result["bytes_per_rule"],
+                "memory_access": result["memory_access"],
                 "tree_depth": self.tree.get_depth(),
                 "nodes_remaining": len(nodes_remaining),
                 "num_nodes": len(self.node_map),

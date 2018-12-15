@@ -27,11 +27,15 @@ def on_episode_end(info):
         info["num_nodes_valid"] = info["num_nodes"]
         info["num_splits_valid"] = info["num_splits"]
         info["mean_split_size_valid"] = info["mean_split_size"]
+        info["bytes_per_rule_valid"] = info["bytes_per_rule"]
+        info["memory_access_valid"] = info["memory_access"]
     else:
         info["tree_depth_valid"] = float("nan")
         info["num_nodes_valid"] = float("nan")
         info["num_splits_valid"] = float("nan")
         info["mean_split_size_valid"] = float("nan")
+        info["bytes_per_rule_valid"] = float("nan")
+        info["memory_access_valid"] = float("nan")
     episode.custom_metrics.update(info)
 
 
@@ -108,8 +112,8 @@ if __name__ == "__main__":
                     "order": "dfs",
                     "onehot_state": True,
                     "leaf_value_fn": None, #grid_search([None, "hicuts"]),
-                    "max_actions": 3000,
-                    "cut_weight": grid_search([0.0, 0.03]),
+                    "max_actions": 5000,
+                    "cut_weight": grid_search([0.0, 0.0001]),
                 }, **extra_env_config),
             }, **extra_config),
         },

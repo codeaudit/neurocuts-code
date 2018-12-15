@@ -107,7 +107,7 @@ class HyperCuts(object):
         return tree.compute_result()
 
     def train(self):
-        print(datetime.datetime.now(), "HyperCuts starts")
+        print(datetime.datetime.now(), "Algorithm HyperCuts")
 
         # divide rules into two sets
         rules_wset = []
