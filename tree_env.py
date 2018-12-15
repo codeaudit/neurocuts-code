@@ -174,12 +174,17 @@ class TreeEnv(MultiAgentEnv):
                 rew[0] = -1
             else:
                 zero_state = self._zeros()
-                rew = self.compute_rewards()
+#                rew = self.compute_rewards(
+#                    self.cut_weight if not nodes_remaining else 0.0)
+                rew = self.compute_rewards(self.cut_weight)
                 obs = {node_id: zero_state for node_id in rew.keys()}
                 info = {node_id: {} for node_id in rew.keys()}
             info[0] = {
                 "tree_depth": self.tree.get_depth(),
                 "nodes_remaining": len(nodes_remaining),
+                "num_nodes": len(self.node_map),
+                "mean_split_size": np.mean(
+                    [len(x) for x in self.child_map.values()]),
                 "num_splits": self.num_actions,
             }
             return obs, rew, {"__all__": True}, info
@@ -203,7 +208,7 @@ class TreeEnv(MultiAgentEnv):
             min(2**(action[1] + 1), range_right - range_left))
         return (cut_dimension, cut_num)
 
-    def compute_rewards(self):
+    def compute_rewards(self, cut_weight):
         depth_to_go = collections.defaultdict(int)
         cuts_to_go = collections.defaultdict(int)
         num_updates = 1
@@ -232,7 +237,7 @@ class TreeEnv(MultiAgentEnv):
                         cuts_to_go[node_id] = sum_child_cuts
                         num_updates += 1
         rew = {
-            node_id: -depth - (self.cut_weight * cuts_to_go[node_id])
+            node_id: -depth - (cut_weight * cuts_to_go[node_id])
             for (node_id, depth) in depth_to_go.items()
                 if node_id in self.child_map
         }

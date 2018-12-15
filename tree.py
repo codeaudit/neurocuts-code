@@ -80,6 +80,9 @@ def load_rules_from_file(file_name):
 
 
 def to_bits(value, n):
+    if value >= 2**n:
+        print("WARNING: clamping value", value, "to", 2**n - 1)
+        value = 2**n - 1
     assert value == int(value)
     b = list(bin(int(value))[2:])
     assert len(b) <= n, (value, b, n)
@@ -369,7 +372,7 @@ class Tree:
         return nodes
 
     def refinement_rule_overlay(self, node):
-        if len(node.rules) == 0 or len(node.rules) > 10000:
+        if len(node.rules) == 0 or len(node.rules) > 500:
             return
 
         new_rules = []

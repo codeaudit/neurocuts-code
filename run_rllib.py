@@ -24,8 +24,14 @@ def on_episode_end(info):
     info = episode.last_info_for(0)
     if info["nodes_remaining"] == 0:
         info["tree_depth_valid"] = info["tree_depth"]
+        info["num_nodes_valid"] = info["num_nodes"]
+        info["num_splits_valid"] = info["num_splits"]
+        info["mean_split_size_valid"] = info["mean_split_size"]
     else:
         info["tree_depth_valid"] = float("nan")
+        info["num_nodes_valid"] = float("nan")
+        info["num_splits_valid"] = float("nan")
+        info["mean_split_size_valid"] = float("nan")
     episode.custom_metrics.update(info)
 
 
@@ -83,7 +89,7 @@ if __name__ == "__main__":
         }
 
     run_experiments({
-        "neurocuts-env":  {
+        "neurocuts-env-weights":  {
             "run": args.run,
             "env": "tree_env",
             "config": dict({
@@ -102,8 +108,8 @@ if __name__ == "__main__":
                     "order": "dfs",
                     "onehot_state": True,
                     "leaf_value_fn": None, #grid_search([None, "hicuts"]),
-                    "max_actions": 2000,
-                    "cut_weight": grid_search([0.0, 0.01, 0.05, 0.1]),
+                    "max_actions": 3000,
+                    "cut_weight": grid_search([0.0, 0.03]),
                 }, **extra_env_config),
             }, **extra_config),
         },
