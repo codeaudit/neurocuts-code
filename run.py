@@ -34,29 +34,31 @@ def run_neurocuts():
     neuro_cuts = NeuroCuts(rules)
     neuro_cuts.train()
 
+EXPRS = ["100K"]
+
 def run_hicuts():
-    for i in ["100", "200", "500", "1000"]:
+    for i in EXPRS:
         print(i)
         rules = load_rules_from_file("classbench/acl1_%s" % i)
         cuts = HiCuts(rules)
         cuts.train()
 
 def run_hypercuts():
-    for i in ["100", "200", "500"]:
+    for i in EXPRS:
         print(i)
         rules = load_rules_from_file("classbench/acl1_%s" % i)
         cuts = HyperCuts(rules)
         cuts.train()
 
 def run_efficuts():
-    for i in ["100", "200", "500"]:
+    for i in EXPRS:
         print(i)
         rules = load_rules_from_file("classbench/acl1_%s" % i)
         cuts = EffiCuts(rules)
         cuts.train()
 
 def run_cutsplit():
-    for i in ["100", "500", "1000"]:
+    for i in EXPRS:
         print(i)
         rules = load_rules_from_file("classbench/acl1_%s" % i)
         cuts = CutSplit(rules)
@@ -108,12 +110,12 @@ if __name__ == "__main__":
     elif sys.argv[1] == "gen_rules":
         gen_rules()
     elif sys.argv[1] == "expr":
-        run_all()
+#        run_all()
         #run_neurocuts()
-        #run_hicuts()
-        #run_hypercuts()
-        #run_efficuts()
-        #run_cutsplit()
+        run_hicuts()
+        run_hypercuts()
+        run_efficuts()
+        run_cutsplit()
     elif sys.argv[1] == "gen_result":
         gen_result(sys.argv[2])
     else:

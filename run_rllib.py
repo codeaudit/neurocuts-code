@@ -1,5 +1,7 @@
 import argparse
 import os
+import glob
+import json
 
 from ray.rllib.models import ModelCatalog
 import ray
@@ -29,6 +31,10 @@ def on_episode_end(info):
         info["mean_split_size_valid"] = info["mean_split_size"]
         info["bytes_per_rule_valid"] = info["bytes_per_rule"]
         info["memory_access_valid"] = info["memory_access"]
+        pid = os.getpid()
+        with open(os.path.expanduser("~/valid_trees-{}.txt".format(pid)), "a") as f:
+            f.write(json.dumps(info))
+            f.write("\n")
     else:
         info["tree_depth_valid"] = float("nan")
         info["num_nodes_valid"] = float("nan")
@@ -36,6 +42,7 @@ def on_episode_end(info):
         info["mean_split_size_valid"] = float("nan")
         info["bytes_per_rule_valid"] = float("nan")
         info["memory_access_valid"] = float("nan")
+    del info["rules_file"]
     episode.custom_metrics.update(info)
 
 
@@ -93,9 +100,12 @@ if __name__ == "__main__":
         }
 
     run_experiments({
-        "neurocuts-env-weights":  {
+        "neurocuts-env-all":  {
             "run": args.run,
             "env": "tree_env",
+            "stop": {
+                "timesteps_total": 1000000,
+            },
             "config": dict({
                 "num_gpus": 1 if args.gpu else 0,
                 "num_workers": args.num_workers,
@@ -108,12 +118,13 @@ if __name__ == "__main__":
                 },
                 "env_config": dict({
                     "q_learning": q_learning,
-                    "rules": os.path.abspath("classbench/{}".format(args.env)),
+                    "rules": grid_search(
+                        [os.path.abspath(x) for x in glob.glob("classbench/*")]),
                     "order": "dfs",
                     "onehot_state": True,
                     "leaf_value_fn": None, #grid_search([None, "hicuts"]),
                     "max_actions": 5000,
-                    "cut_weight": grid_search([0.0, 0.0001]),
+                    "cut_weight": 0.0,
                 }, **extra_env_config),
             }, **extra_config),
         },

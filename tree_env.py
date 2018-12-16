@@ -44,6 +44,7 @@ class TreeEnv(MultiAgentEnv):
 
         self.order = order
         self.cut_weight = cut_weight
+        self.rules_file = rules_file
         self.rules = load_rules_from_file(rules_file)
         self.leaf_threshold = leaf_threshold
         self.onehot_state = onehot_state
@@ -189,6 +190,7 @@ class TreeEnv(MultiAgentEnv):
                 "mean_split_size": np.mean(
                     [len(x) for x in self.child_map.values()]),
                 "num_splits": self.num_actions,
+                "rules_file": self.rules_file,
             }
             return obs, rew, {"__all__": True}, info
         else:
