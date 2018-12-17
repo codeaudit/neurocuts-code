@@ -97,6 +97,7 @@ if __name__ == "__main__":
     elif args.run == "PPO":
         extra_config = {
             "entropy_coeff": 0.01,
+            "sample_batch_size": 5000,
         }
 
     run_experiments({
