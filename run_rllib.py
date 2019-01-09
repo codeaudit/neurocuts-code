@@ -31,7 +31,7 @@ def on_episode_end(info):
         info["mean_split_size_valid"] = info["mean_split_size"]
         info["bytes_per_rule_valid"] = info["bytes_per_rule"]
         info["memory_access_valid"] = info["memory_access"]
-        pid = os.getpid()
+        pid = info["rules_file"].split("/")[-1]
         with open(os.path.expanduser("~/valid_trees-{}.txt".format(pid)), "a") as f:
             f.write(json.dumps(info))
             f.write("\n")
@@ -98,6 +98,7 @@ if __name__ == "__main__":
         extra_config = {
             "entropy_coeff": 0.01,
             "sample_batch_size": 5000,
+            "train_batch_size": lambda spec: 5000 * spec.config.num_workers,
         }
 
     run_experiments({
@@ -105,7 +106,7 @@ if __name__ == "__main__":
             "run": args.run,
             "env": "tree_env",
             "stop": {
-                "timesteps_total": 1000000,
+                "timesteps_total": 2000000,
             },
             "config": dict({
                 "num_gpus": 1 if args.gpu else 0,
@@ -119,12 +120,13 @@ if __name__ == "__main__":
                 },
                 "env_config": dict({
                     "q_learning": q_learning,
+#                    "rules": os.path.abspath("classbench/acl1_1000"),
                     "rules": grid_search(
-                        [os.path.abspath(x) for x in glob.glob("classbench/*")]),
+                        [os.path.abspath(x) for x in glob.glob("classbench/*000")]),
                     "order": "dfs",
                     "onehot_state": True,
                     "leaf_value_fn": None, #grid_search([None, "hicuts"]),
-                    "max_actions": 5000,
+                    "max_actions": grid_search([5000, 10000]),
                     "cut_weight": 0.0,
                 }, **extra_env_config),
             }, **extra_config),
