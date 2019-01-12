@@ -98,15 +98,20 @@ if __name__ == "__main__":
         extra_config = {
             "entropy_coeff": 0.01,
             "sample_batch_size": 5000,
-            "train_batch_size": lambda spec: 5000 * spec.config.num_workers,
+            "train_batch_size": 5000,
+        }
+    elif args.run == "IMPALA":
+        extra_config = {
+            "sample_batch_size": 5000,
+            "train_batch_size": 5000,
         }
 
     run_experiments({
-        "neurocuts-env-all":  {
+        "neurocuts-env-debug":  {
             "run": args.run,
             "env": "tree_env",
             "stop": {
-                "timesteps_total": 2000000,
+                "timesteps_total": 1000000,
             },
             "config": dict({
                 "num_gpus": 1 if args.gpu else 0,
@@ -122,12 +127,12 @@ if __name__ == "__main__":
                     "q_learning": q_learning,
 #                    "rules": os.path.abspath("classbench/acl1_1000"),
                     "rules": grid_search(
-                        [os.path.abspath(x) for x in glob.glob("classbench/*000")]),
+                        [os.path.abspath(x) for x in glob.glob("classbench/*10000")]),
                     "order": "dfs",
                     "onehot_state": True,
                     "leaf_value_fn": None, #grid_search([None, "hicuts"]),
-                    "max_actions": grid_search([5000, 10000]),
-                    "cut_weight": 0.0,
+                    "max_actions": 5000,
+                    "cut_weight": grid_search([0, 0.001]),
                 }, **extra_env_config),
             }, **extra_config),
         },

@@ -181,11 +181,19 @@ class TreeEnv(MultiAgentEnv):
                 obs = {node_id: zero_state for node_id in rew.keys()}
                 info = {node_id: {} for node_id in rew.keys()}
             result = self.tree.compute_result()
+            rules_remaining = set()
+            largest_node_remaining = 0
+            for n in nodes_remaining:
+                for r in n.rules:
+                    rules_remaining.add(str(r))
+                largest_node_remaining = max(largest_node_remaining, len(n.rules))
             info[0] = {
                 "bytes_per_rule": result["bytes_per_rule"],
                 "memory_access": result["memory_access"],
                 "tree_depth": self.tree.get_depth(),
                 "nodes_remaining": len(nodes_remaining),
+                "largest_node_remaining": largest_node_remaining,
+                "rules_remaining": len(rules_remaining),
                 "num_nodes": len(self.node_map),
                 "mean_split_size": np.mean(
                     [len(x) for x in self.child_map.values()]),
