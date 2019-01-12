@@ -32,7 +32,7 @@ class ReplayMemory(object):
 class CutsNet(nn.Module):
     def __init__(self, action_size, onehot_state):
         super(CutsNet, self).__init__()
-        self.fc1 = nn.Linear(208 if onehot_state else 26, 256)
+        self.fc1 = nn.Linear(218 if onehot_state else 36, 256)
         self.fc2 = nn.Linear(256, 256)
         self.fc3 = nn.Linear(256, action_size)
 

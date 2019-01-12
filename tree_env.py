@@ -8,6 +8,9 @@ from tree import Tree, load_rules_from_file
 from hicuts import HiCuts
 
 
+NUM_PART_LEVELS = 6  # 2%, 4%, 8%, 16%, 32%, 64%
+
+
 class TreeEnv(MultiAgentEnv):
     """Two modes: q_learning and on-policy.
 
@@ -30,6 +33,7 @@ class TreeEnv(MultiAgentEnv):
             order="dfs",
             max_cuts_per_dimension=5,
             max_actions_per_episode=2000,
+            partition_enabled=False,
             leaf_value_fn="hicuts",
             q_learning=False,
             cut_weight=0.0):
@@ -45,6 +49,7 @@ class TreeEnv(MultiAgentEnv):
         self.order = order
         self.cut_weight = cut_weight
         self.rules_file = rules_file
+        self.partition_enabled = partition_enabled
         self.rules = load_rules_from_file(rules_file)
         self.leaf_threshold = leaf_threshold
         self.onehot_state = onehot_state
@@ -54,28 +59,34 @@ class TreeEnv(MultiAgentEnv):
         self.node_map = None
         self.child_map = None
         self.q_learning = q_learning
+        self.max_cuts_per_dimension = max_cuts_per_dimension
         if q_learning:
             num_actions = 5 * max_cuts_per_dimension
-            self.max_cuts_per_dimension = max_cuts_per_dimension
             self.max_children = 2**max_cuts_per_dimension
+            if self.partition_enabled:
+                num_actions += 5 * NUM_PART_LEVELS
             self.action_space = Discrete(num_actions)
             if onehot_state:
                 self.observation_space = Tuple([
                     Box(1, self.max_children, (), dtype=np.float32),  # nchild
                     Box(0, 1, (), dtype=np.float32),  # is finished
-                    Box(0, 1, (self.max_children, 208), dtype=np.float32)])
+                    Box(0, 1, (self.max_children, 218), dtype=np.float32)])
             else:
                 self.observation_space = Tuple([
                     Box(1, self.max_children, (), dtype=np.float32),
                     Box(0, 1, (), dtype=np.float32),
-                    Box(0, 1, (self.max_children, 26), dtype=np.float32)])
+                    Box(0, 1, (self.max_children, 36), dtype=np.float32)])
         else:
-            self.action_space = Tuple(
-                [Discrete(5), Discrete(max_cuts_per_dimension)])
-            if onehot_state:
-                self.observation_space = Box(0, 1, (208,), dtype=np.float32)
+            if self.partition_enabled:
+                num_part_levels = NUM_PART_LEVELS
             else:
-                self.observation_space = Box(0, 1, (26,), dtype=np.float32)
+                num_part_levels = 0
+            self.action_space = Tuple(
+                [Discrete(5), Discrete(max_cuts_per_dimension + num_part_levels)])
+            if onehot_state:
+                self.observation_space = Box(0, 1, (218,), dtype=np.float32)
+            else:
+                self.observation_space = Box(0, 1, (36,), dtype=np.float32)
 
     def reset(self):
         self.num_actions = 0
@@ -97,9 +108,9 @@ class TreeEnv(MultiAgentEnv):
 
     def _zeros(self):
         if self.onehot_state:
-            zeros = [0] * 208
+            zeros = [0] * 218
         else:
-            zeros = [0] * 26
+            zeros = [0] * 36
         return zeros
 
     def _encode_state(self, node):
@@ -132,11 +143,31 @@ class TreeEnv(MultiAgentEnv):
             node = self.node_map[node_id]
             orig_action = action
             if np.isscalar(action):
-                cut_dimension = int(action) % 5
-                cut_num = int(action) // self.max_cuts_per_dimension
-                action = [cut_dimension, cut_num]
-            cut_dimension, cut_num = self.action_tuple_to_cut(node, action)
-            children = self.tree.cut_node(node, cut_dimension, int(cut_num))
+                if int(action) >= 5 * self.max_cuts_per_dimension:
+                    assert self.partition_enabled, action
+                    action = int(action) - 5 * self.max_cuts_per_dimension
+                    part_num = action % 5
+                    part_size = action // 5
+                    action = [part_num, part_size]
+                else:
+                    partition = False
+                    cut_dimension = int(action) % 5
+                    cut_num = int(action) // 5
+                    action = [cut_dimension, cut_num]
+            else:
+                if action[1] >= self.max_cuts_per_dimension:
+                    assert self.partition_enabled, action
+                    partition = True
+                    action[1] -= self.max_cuts_per_dimension
+                else:
+                    partition = False
+
+            if partition:
+                children = self.tree.partition_node(node, action[0], action[1])
+            else:
+                cut_dimension, cut_num = self.action_tuple_to_cut(node, action)
+                children = self.tree.cut_node(node, cut_dimension, int(cut_num))
+
             self.num_actions += 1
             num_leaf = 0
             for c in children:
@@ -195,6 +226,8 @@ class TreeEnv(MultiAgentEnv):
                 "largest_node_remaining": largest_node_remaining,
                 "rules_remaining": len(rules_remaining),
                 "num_nodes": len(self.node_map),
+                "partition_fraction": len(
+                    [n for n in self.node_map.values() if n.is_partition()]) / len(self.node_map),
                 "mean_split_size": np.mean(
                     [len(x) for x in self.child_map.values()]),
                 "num_splits": self.num_actions,
@@ -239,8 +272,12 @@ class TreeEnv(MultiAgentEnv):
                         depth_to_go[node_id] = self.leaf_value_fn(node.rules)
                         cuts_to_go[node_id] = 0
                 if node_id in self.child_map:
-                    max_child_depth = 1 + max(
-                        [depth_to_go[c] for c in self.child_map[node_id]])
+                    if self.node_map[node_id].is_partition():
+                        max_child_depth = sum(
+                            [depth_to_go[c] for c in self.child_map[node_id]])
+                    else:
+                        max_child_depth = 1 + max(
+                            [depth_to_go[c] for c in self.child_map[node_id]])
                     if max_child_depth > depth_to_go[node_id]:
                         depth_to_go[node_id] = max_child_depth
                         num_updates += 1

@@ -64,7 +64,8 @@ if __name__ == "__main__":
             leaf_value_fn=env_config["leaf_value_fn"],
             order=env_config["order"],
             max_actions_per_episode=env_config["max_actions"],
-            cut_weight=env_config["cut_weight"]))
+            cut_weight=env_config["cut_weight"],
+            partition_enabled=env_config["partition_enabled"]))
 
     extra_config = {}
     extra_env_config = {}
@@ -107,7 +108,7 @@ if __name__ == "__main__":
         }
 
     run_experiments({
-        "neurocuts-env-debug":  {
+        "neurocuts-env-part":  {
             "run": args.run,
             "env": "tree_env",
             "stop": {
@@ -126,13 +127,14 @@ if __name__ == "__main__":
                 "env_config": dict({
                     "q_learning": q_learning,
 #                    "rules": os.path.abspath("classbench/acl1_1000"),
+                    "partition_enabled": grid_search([False, True]),
                     "rules": grid_search(
                         [os.path.abspath(x) for x in glob.glob("classbench/*10000")]),
                     "order": "dfs",
                     "onehot_state": True,
                     "leaf_value_fn": None, #grid_search([None, "hicuts"]),
                     "max_actions": 5000,
-                    "cut_weight": grid_search([0, 0.001]),
+                    "cut_weight": 0, #grid_search([0, 0.001]),
                 }, **extra_env_config),
             }, **extra_config),
         },
