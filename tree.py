@@ -94,6 +94,16 @@ def to_bits(value, n):
     return [0.0] * (n - len(b)) + [float(i) for i in b]
 
 
+def onehot_encode(arr, n):
+   out = []
+   for a in arr:
+       x = [0] * n
+       for i in range(a):
+           x[i] = 1
+       out.extend(x)
+   return out
+
+
 class Node:
     def __init__(self, id, ranges, rules, depth, onehot_state, partitions):
         self.id = id
@@ -161,7 +171,10 @@ class Node:
             else:
                 partition_state[part_dim * 2] = max(
                     partition_state[part_dim * 2], part_size + 1)
-        self.state.extend(partition_state)
+        if onehot:
+            self.state.extend(onehot_encode(partition_state, 7))
+        else:
+            self.state.extend(partition_state)
         self.state = np.array(self.state)
 
     def get_state(self):

@@ -15,7 +15,7 @@ from q_func import MinChildQFunc
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--run", type=str, default="PPO")
-parser.add_argument("--gpu", type=bool, default=False)
+parser.add_argument("--gpu", action="store_true")
 parser.add_argument("--env", type=str, default="acl1_100")
 parser.add_argument("--num-workers", type=int, default=0)
 
@@ -86,7 +86,7 @@ if __name__ == "__main__":
         if args.run == "APEX":
             extra_config.update({
                 "train_batch_size": 512,
-                "buffer_size": 50000,
+                "buffer_size": 500000,
                 "learning_starts": 5000,
                 "target_network_update_freq": 50000,
                 "timesteps_per_iteration": 5000,
@@ -98,6 +98,7 @@ if __name__ == "__main__":
     elif args.run == "PPO":
         extra_config = {
             "entropy_coeff": 0.01,
+            "sgd_minibatch_size": 1000,
             "sample_batch_size": 5000,
             "train_batch_size": 5000,
         }
@@ -112,10 +113,10 @@ if __name__ == "__main__":
             "run": args.run,
             "env": "tree_env",
             "stop": {
-                "timesteps_total": 1000000,
+                "timesteps_total": 3000000,
             },
             "config": dict({
-                "num_gpus": 1 if args.gpu else 0,
+                "num_gpus": 0.2 if args.gpu else 0,
                 "num_workers": args.num_workers,
                 "batch_mode": "complete_episodes",
                 "observation_filter": "NoFilter",
@@ -129,7 +130,7 @@ if __name__ == "__main__":
 #                    "rules": os.path.abspath("classbench/acl1_1000"),
                     "partition_enabled": grid_search([False, True]),
                     "rules": grid_search(
-                        [os.path.abspath(x) for x in glob.glob("classbench/*10000")]),
+                        [os.path.abspath(x) for x in glob.glob("classbench/*000")]),
                     "order": "dfs",
                     "onehot_state": True,
                     "leaf_value_fn": None, #grid_search([None, "hicuts"]),

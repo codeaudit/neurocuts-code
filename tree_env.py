@@ -70,7 +70,7 @@ class TreeEnv(MultiAgentEnv):
                 self.observation_space = Tuple([
                     Box(1, self.max_children, (), dtype=np.float32),  # nchild
                     Box(0, 1, (), dtype=np.float32),  # is finished
-                    Box(0, 1, (self.max_children, 218), dtype=np.float32)])
+                    Box(0, 1, (self.max_children, 278), dtype=np.float32)])
             else:
                 self.observation_space = Tuple([
                     Box(1, self.max_children, (), dtype=np.float32),
@@ -84,7 +84,7 @@ class TreeEnv(MultiAgentEnv):
             self.action_space = Tuple(
                 [Discrete(5), Discrete(max_cuts_per_dimension + num_part_levels)])
             if onehot_state:
-                self.observation_space = Box(0, 1, (218,), dtype=np.float32)
+                self.observation_space = Box(0, 1, (278,), dtype=np.float32)
             else:
                 self.observation_space = Box(0, 1, (36,), dtype=np.float32)
 
@@ -108,7 +108,7 @@ class TreeEnv(MultiAgentEnv):
 
     def _zeros(self):
         if self.onehot_state:
-            zeros = [0] * 218
+            zeros = [0] * 278
         else:
             zeros = [0] * 36
         return zeros
@@ -149,6 +149,7 @@ class TreeEnv(MultiAgentEnv):
                     part_num = action % 5
                     part_size = action // 5
                     action = [part_num, part_size]
+                    partition = True
                 else:
                     partition = False
                     cut_dimension = int(action) % 5
@@ -226,8 +227,8 @@ class TreeEnv(MultiAgentEnv):
                 "largest_node_remaining": largest_node_remaining,
                 "rules_remaining": len(rules_remaining),
                 "num_nodes": len(self.node_map),
-                "partition_fraction": len(
-                    [n for n in self.node_map.values() if n.is_partition()]) / len(self.node_map),
+                "partition_fraction": float(len(
+                    [n for n in self.node_map.values() if n.is_partition()])) / len(self.node_map),
                 "mean_split_size": np.mean(
                     [len(x) for x in self.child_map.values()]),
                 "num_splits": self.num_actions,
