@@ -11,6 +11,7 @@ from ray.tune.registry import register_env
 
 from tree_env import TreeEnv
 from q_func import MinChildQFunc
+from mask import PartitionMaskModel
 
 
 parser = argparse.ArgumentParser()
@@ -95,8 +96,14 @@ if __name__ == "__main__":
         extra_env_config = {
             "leaf_value_fn": None,
         }
-    elif args.run == "PPO":
+    else:
+        ModelCatalog.register_custom_model("mask", PartitionMaskModel)
+
+    if args.run == "PPO":
         extra_config = {
+            "model": {
+                "custom_model": "mask",
+            },
             "entropy_coeff": 0.01,
             "sgd_minibatch_size": 1000,
             "sample_batch_size": 5000,
@@ -104,12 +111,15 @@ if __name__ == "__main__":
         }
     elif args.run == "IMPALA":
         extra_config = {
+            "model": {
+                "custom_model": "mask",
+            },
             "sample_batch_size": 5000,
             "train_batch_size": 5000,
         }
 
     run_experiments({
-        "neurocuts-env-part":  {
+        "neurocuts-env-part-toponly":  {
             "run": args.run,
             "env": "tree_env",
             "stop": {
@@ -125,10 +135,11 @@ if __name__ == "__main__":
                     "on_sample_end": tune.function(erase_done_values)
                         if q_learning else None,
                 },
+                "vf_share_layers": True,
                 "env_config": dict({
                     "q_learning": q_learning,
-#                    "rules": os.path.abspath("classbench/acl1_1000"),
-                    "partition_enabled": grid_search([False, True]),
+                    "partition_enabled": True,
+#                    "rules": os.path.abspath("classbench/acl1_100"),
                     "rules": grid_search(
                         [os.path.abspath(x) for x in glob.glob("classbench/*000")]),
                     "order": "dfs",

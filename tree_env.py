@@ -1,6 +1,6 @@
 import collections
 import numpy as np
-from gym.spaces import Tuple, Box, Discrete
+from gym.spaces import Tuple, Box, Discrete, Dict
 
 from ray.rllib.env import MultiAgentEnv
 
@@ -81,12 +81,20 @@ class TreeEnv(MultiAgentEnv):
                 num_part_levels = NUM_PART_LEVELS
             else:
                 num_part_levels = 0
+            self.num_part_levels = num_part_levels
             self.action_space = Tuple(
                 [Discrete(5), Discrete(max_cuts_per_dimension + num_part_levels)])
             if onehot_state:
-                self.observation_space = Box(0, 1, (278,), dtype=np.float32)
+                x = 278
             else:
-                self.observation_space = Box(0, 1, (36,), dtype=np.float32)
+                x = 36
+            self.observation_space = Dict({
+                "real_obs": Box(0, 1, (x,), dtype=np.float32),
+                "action_mask": Box(
+                    0, 1,
+                    (5 + max_cuts_per_dimension + num_part_levels,),
+                    dtype=np.float32),
+            })
 
     def reset(self):
         self.num_actions = 0
@@ -111,7 +119,10 @@ class TreeEnv(MultiAgentEnv):
             zeros = [0] * 278
         else:
             zeros = [0] * 36
-        return zeros
+        return {
+            "real_obs": zeros,
+            "action_mask": [1] * (5 + self.max_cuts_per_dimension + self.num_part_levels),
+        }
 
     def _encode_state(self, node):
         if self.q_learning:
@@ -119,7 +130,19 @@ class TreeEnv(MultiAgentEnv):
             state[0] = node.get_state()
             return [1, 0, state]
         else:
-            return node.get_state()
+            if node.depth > 1:
+                action_mask = (
+                    [1] * (5 + self.max_cuts_per_dimension) +
+                    [0] * self.num_part_levels)
+            else:
+                assert node.depth == 1, node.depth
+                action_mask = (
+                    [1] * (5 + self.max_cuts_per_dimension) +
+                    [1] * self.num_part_levels)
+            return {
+                "real_obs": node.get_state(),
+                "action_mask": action_mask,
+            }
 
     def _encode_child_state(self, node):
         assert self.q_learning
