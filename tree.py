@@ -127,6 +127,11 @@ class Node:
         else:
             assert False, (self.action, str(self))
 
+    def is_useless(self):
+        if not self.children:
+            return False
+        return max(len(c.rules) for c in self.children) == len(self.rules)
+
     def compute_state(self, onehot=False):
         if onehot:
             self.state = []

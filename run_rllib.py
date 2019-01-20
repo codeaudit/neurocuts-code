@@ -63,6 +63,7 @@ if __name__ == "__main__":
             onehot_state=env_config["onehot_state"],
             q_learning=env_config["q_learning"],
             leaf_value_fn=env_config["leaf_value_fn"],
+            penalty_fn=env_config["penalty_fn"],
             order=env_config["order"],
             max_actions_per_episode=env_config["max_actions"],
             cut_weight=env_config["cut_weight"],
@@ -104,7 +105,6 @@ if __name__ == "__main__":
             "model": {
                 "custom_model": "mask",
             },
-            "entropy_coeff": 0.01,
             "sgd_minibatch_size": 1000,
             "sample_batch_size": 5000,
             "train_batch_size": 5000,
@@ -119,11 +119,12 @@ if __name__ == "__main__":
         }
 
     run_experiments({
-        "neurocuts-env-part-toponly":  {
+        "neurocuts": {
             "run": args.run,
             "env": "tree_env",
             "stop": {
-                "timesteps_total": 3000000,
+                "timesteps_total": 100000,
+#                "timesteps_total": 3000000,
             },
             "config": dict({
                 "num_gpus": 0.2 if args.gpu else 0,
@@ -136,17 +137,25 @@ if __name__ == "__main__":
                         if q_learning else None,
                 },
                 "vf_share_layers": True,
+#                "entropy_coeff": grid_search([0.0, 0.01]),
                 "env_config": dict({
-                    "q_learning": q_learning,
-                    "partition_enabled": True,
-#                    "rules": os.path.abspath("classbench/acl1_100"),
-                    "rules": grid_search(
-                        [os.path.abspath(x) for x in glob.glob("classbench/*000")]),
                     "order": "dfs",
                     "onehot_state": True,
-                    "leaf_value_fn": None, #grid_search([None, "hicuts"]),
-                    "max_actions": 5000,
-                    "cut_weight": 0, #grid_search([0, 0.001]),
+                    "q_learning": q_learning,
+                    "partition_enabled": True,
+
+                    "rules": os.path.abspath("classbench/acl1_seed_1000"),
+                    "leaf_value_fn": grid_search([None, "constant"]),
+                    "penalty_fn": grid_search([None, "useless_nodes"]),
+                    "max_actions": 1000,
+                    "cut_weight": 0,
+
+#                    "rules": grid_search(
+#                        [os.path.abspath(x) for x in glob.glob("classbench/*10000")]),
+#                    "leaf_value_fn": grid_search([None, "len"]),
+#                    "penalty_fn": grid_search([None, "noops"]),
+#                    "max_actions": grid_search([5000, 10000]),
+#                    "cut_weight": grid_search([0, 0.001]),
                 }, **extra_env_config),
             }, **extra_config),
         },

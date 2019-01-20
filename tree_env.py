@@ -32,19 +32,39 @@ class TreeEnv(MultiAgentEnv):
             onehot_state=True,
             order="dfs",
             max_cuts_per_dimension=5,
-            max_actions_per_episode=2000,
+            max_actions_per_episode=5000,
             partition_enabled=False,
-            leaf_value_fn="hicuts",
+            leaf_value_fn=None,
+            penalty_fn=None,
             q_learning=False,
             cut_weight=0.0):
 
         if leaf_value_fn == "hicuts":
             self.leaf_value_fn = lambda rules: HiCuts(rules).get_depth()
             assert not q_learning, "configuration not supported"
+        elif leaf_value_fn == "len":
+            self.leaf_value_fn = lambda rules: len(rules)
+            assert not q_learning, "configuration not supported"
+        elif leaf_value_fn == "constant":
+            self.leaf_value_fn = lambda rules: 10
+            assert not q_learning, "configuration not supported"
         elif leaf_value_fn is None:
             self.leaf_value_fn = lambda rules: 0
         else:
             raise ValueError("Unknown value fn: {}".format(leaf_value_fn))
+
+        if penalty_fn is None:
+            self.penalty_fn = lambda node: 0
+        elif penalty_fn == "useless_nodes":
+            def penalty(node):
+                if node.is_useless():
+                    return 10
+                else:
+                    return 0
+
+            self.penalty_fn = penalty
+        else:
+            raise ValueError("Unknown penalty fn: {}".format(penalty_fn))
 
         self.order = order
         self.cut_weight = cut_weight
@@ -250,6 +270,8 @@ class TreeEnv(MultiAgentEnv):
                 "largest_node_remaining": largest_node_remaining,
                 "rules_remaining": len(rules_remaining),
                 "num_nodes": len(self.node_map),
+                "useless_fraction": float(len(
+                    [n for n in self.node_map.values() if n.is_useless()])) / len(self.node_map),
                 "partition_fraction": float(len(
                     [n for n in self.node_map.values() if n.is_partition()])) / len(self.node_map),
                 "mean_split_size": np.mean(
@@ -311,7 +333,10 @@ class TreeEnv(MultiAgentEnv):
                         cuts_to_go[node_id] = sum_child_cuts
                         num_updates += 1
         rew = {
-            node_id: -depth - (cut_weight * cuts_to_go[node_id])
+            node_id:
+                - depth
+                - (cut_weight * cuts_to_go[node_id])
+                - self.penalty_fn(self.node_map[node_id])
             for (node_id, depth) in depth_to_go.items()
                 if node_id in self.child_map
         }
