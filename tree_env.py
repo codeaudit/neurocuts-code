@@ -33,6 +33,7 @@ class TreeEnv(MultiAgentEnv):
             order="dfs",
             max_cuts_per_dimension=5,
             max_actions_per_episode=5000,
+            max_depth=100,
             partition_enabled=False,
             leaf_value_fn=None,
             penalty_fn=None,
@@ -55,6 +56,14 @@ class TreeEnv(MultiAgentEnv):
 
         if penalty_fn is None:
             self.penalty_fn = lambda node: 0
+        elif penalty_fn == "correct_useless":
+            def penalty(node):
+                if node.is_useless():
+                    return -1
+                else:
+                    return 0
+
+            self.penalty_fn = penalty
         elif penalty_fn == "useless_nodes":
             def penalty(node):
                 if node.is_useless():
@@ -74,6 +83,7 @@ class TreeEnv(MultiAgentEnv):
         self.leaf_threshold = leaf_threshold
         self.onehot_state = onehot_state
         self.max_actions_per_episode = max_actions_per_episode
+        self.max_depth = max_depth
         self.num_actions = None
         self.tree = None
         self.node_map = None
@@ -118,6 +128,7 @@ class TreeEnv(MultiAgentEnv):
 
     def reset(self):
         self.num_actions = 0
+        self.exceeded_max_depth = []
         self.tree = Tree(
             self.rules, self.leaf_threshold, refinements = {
                 "node_merging"      : True,
@@ -226,9 +237,11 @@ class TreeEnv(MultiAgentEnv):
             nodes_remaining = new_children
         else:
             node = self.tree.get_current_node()
-            while node and self.tree.is_leaf(node):
+            while node and (self.tree.is_leaf(node) or node.depth > self.max_depth):
                 node = self.tree.get_next_node()
-            nodes_remaining = self.tree.nodes_to_cut
+                if node and node.depth > self.max_depth:
+                    self.exceeded_max_depth.append(node)
+            nodes_remaining = self.tree.nodes_to_cut + self.exceeded_max_depth
 
         if self.q_learning:
             obs, rew, done, info = {}, {}, {}, {}
@@ -265,6 +278,7 @@ class TreeEnv(MultiAgentEnv):
             info[0] = {
                 "bytes_per_rule": result["bytes_per_rule"],
                 "memory_access": result["memory_access"],
+                "exceeded_max_depth": len(self.exceeded_max_depth),
                 "tree_depth": self.tree.get_depth(),
                 "nodes_remaining": len(nodes_remaining),
                 "largest_node_remaining": largest_node_remaining,

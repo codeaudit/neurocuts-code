@@ -115,6 +115,8 @@ class Node:
         self.compute_state(onehot_state)
         self.action = None
         self.pushup_rules = None
+#        assert self.ranges[8] <= 256, self.ranges
+#        assert self.ranges[9] <= 256, self.ranges
 
     def is_partition(self):
         """Returns if node was partitioned."""

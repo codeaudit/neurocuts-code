@@ -19,7 +19,7 @@ class PartitionMaskModel(Model):
                 num_outputs, mask)
 
         last_layer = input_dict["obs"]["real_obs"]
-        hiddens = [256, 256]
+        hiddens = options["fcnet_hiddens"]
         for i, size in enumerate(hiddens):
             label = "fc{}".format(i)
             last_layer = slim.fully_connected(
