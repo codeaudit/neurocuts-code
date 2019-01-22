@@ -26,18 +26,21 @@ def on_episode_end(info):
     """Report tree custom metrics"""
     episode = info["episode"]
     info = episode.last_info_for(0)
+    pid = info["rules_file"].split("/")[-1]
+    out = os.path.abspath("valid_trees-{}.txt".format(pid))
     if info["nodes_remaining"] == 0:
+        print("valid tree out will be", out)
         info["tree_depth_valid"] = info["tree_depth"]
         info["num_nodes_valid"] = info["num_nodes"]
         info["num_splits_valid"] = info["num_splits"]
         info["mean_split_size_valid"] = info["mean_split_size"]
         info["bytes_per_rule_valid"] = info["bytes_per_rule"]
         info["memory_access_valid"] = info["memory_access"]
-        pid = info["rules_file"].split("/")[-1]
-        with open("valid_trees-{}.txt".format(pid), "a") as f:
+        with open(out, "a") as f:
             f.write(json.dumps(info))
             f.write("\n")
     else:
+        print("invalid tree out", out)
         info["tree_depth_valid"] = float("nan")
         info["num_nodes_valid"] = float("nan")
         info["num_splits_valid"] = float("nan")
@@ -106,14 +109,16 @@ if __name__ == "__main__":
         extra_config = {
             "model": {
                 "custom_model": "mask",
-                "fcnet_hiddens": [512, 512], 
+                "fcnet_hiddens": [1024, 1024],
 #                grid_search([
 #                    [64, 64],
 #                    [256, 256],
 #                    [512, 512],
 #                ]),
             },
-            "sgd_minibatch_size": 1000,
+            "vf_share_layers": True,
+            "entropy_coeff": 0.01, #grid_search([0.0, 0.01]),
+            "sgd_minibatch_size": 2500,
             "sample_batch_size": 5000,
             "train_batch_size": 5000,
         }
@@ -127,11 +132,11 @@ if __name__ == "__main__":
         }
 
     run_experiments({
-        "neurocuts": {
+        "neurocuts2": {
             "run": args.run,
             "env": "tree_env",
             "stop": {
-                "timesteps_total": 3000000,
+#                "timesteps_total": 10000000,
             },
             "config": dict({
                 "num_gpus": 0.2 if args.gpu else 0,
@@ -143,38 +148,35 @@ if __name__ == "__main__":
                     "on_sample_end": tune.function(erase_done_values)
                         if q_learning else None,
                 },
-                "vf_share_layers": True,
-                "entropy_coeff": 0.01, #grid_search([0.0, 0.01]),
                 "env_config": dict({
                     "order": "dfs",
                     "onehot_state": True,
                     "q_learning": q_learning,
                     "partition_enabled": True,
-                    "max_depth": 100,
+                    "max_depth": 200,
                     "rules": grid_search([
-                        os.path.abspath("classbench/acl1_seed_100000"),
-                        os.path.abspath("classbench/acl2_seed_10000"),
+#                        os.path.abspath("classbench/acl1_seed_1000"),
+
+#                        os.path.abspath("classbench/acl4_seed_10000"),
+#                        os.path.abspath("classbench/fw1_seed_10000"),
+#                        os.path.abspath("classbench/fw3_seed_10000"),
+#                        os.path.abspath("classbench/fw4_seed_10000"),
+#                        os.path.abspath("classbench/fw5_seed_10000"),
+#                        os.path.abspath("classbench/ipc1_seed_10000"),
+
                         os.path.abspath("classbench/acl2_seed_100000"),
-                        os.path.abspath("classbench/acl3_seed_10000"),
                         os.path.abspath("classbench/acl3_seed_100000"),
-                        os.path.abspath("classbench/acl4_seed_10000"),
                         os.path.abspath("classbench/acl4_seed_100000"),
-                        os.path.abspath("classbench/fw1_seed_10000"),
                         os.path.abspath("classbench/fw1_seed_100000"),
-                        os.path.abspath("classbench/fw2_seed_10000"),
-                        os.path.abspath("classbench/fw2_seed_100000"),
-                        os.path.abspath("classbench/fw3_seed_10000"),
                         os.path.abspath("classbench/fw3_seed_100000"),
-                        os.path.abspath("classbench/fw4_seed_10000"),
                         os.path.abspath("classbench/fw4_seed_100000"),
-                        os.path.abspath("classbench/fw5_seed_10000"),
                         os.path.abspath("classbench/fw5_seed_100000"),
+                        os.path.abspath("classbench/ipc1_seed_100000"),
                     ]),
                     "leaf_value_fn": None, #grid_search([None, "constant"]),
                     "penalty_fn": None, #grid_search([None, "useless_nodes", "correct_useless"]),
-                    "max_actions": 7500,
-                    "cut_weight": grid_search([0, 0.001]),
-
+                    "max_actions": 50000,
+                    "cut_weight": 0,  #0.001,
 #                    "rules": grid_search(
 #                        [os.path.abspath(x) for x in glob.glob("classbench/*10000")]),
 #                    "leaf_value_fn": grid_search([None, "len"]),

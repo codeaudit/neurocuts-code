@@ -256,7 +256,8 @@ class TreeEnv(MultiAgentEnv):
             obs, rew, done, info = {}, {}, {}, {}
 
         if (not nodes_remaining or
-                self.num_actions > self.max_actions_per_episode):
+                self.num_actions > self.max_actions_per_episode or
+                self.tree.get_current_node() is None):
             if self.q_learning:
                 # terminate the root agent last always to preserve the stats
                 obs[0] = self._encode_child_state(self.tree.root)
