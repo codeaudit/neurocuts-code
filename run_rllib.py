@@ -153,7 +153,7 @@ if __name__ == "__main__":
                     "onehot_state": True,
                     "q_learning": q_learning,
                     "partition_enabled": True,
-                    "max_depth": 200,
+                    "max_depth": 500,
                     "rules": grid_search([
 #                        os.path.abspath("classbench/acl1_seed_1000"),
 
@@ -176,7 +176,7 @@ if __name__ == "__main__":
                     "leaf_value_fn": None, #grid_search([None, "constant"]),
                     "penalty_fn": None, #grid_search([None, "useless_nodes", "correct_useless"]),
                     "max_actions": 50000,
-                    "cut_weight": 0,  #0.001,
+                    "cut_weight": 0.001,
 #                    "rules": grid_search(
 #                        [os.path.abspath(x) for x in glob.glob("classbench/*10000")]),
 #                    "leaf_value_fn": grid_search([None, "len"]),
