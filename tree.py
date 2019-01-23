@@ -105,9 +105,11 @@ def onehot_encode(arr, n):
 
 
 class Node:
-    def __init__(self, id, ranges, rules, depth, onehot_state, partitions):
+    def __init__(self, id, ranges, rules, depth, onehot_state, partitions,
+            manual_partition):
         self.id = id
         self.partitions = list(partitions or [])
+        self.manual_partition = manual_partition
         self.ranges = ranges
         self.rules = rules
         self.depth = depth
@@ -162,26 +164,36 @@ class Node:
             self.state.append(self.ranges[9] - 1)
             self.state = [i / 256 for i in self.state]
 
-        # 0, 6 -> 0-64%
-        # 6, 7 -> 64-100%
-        partition_state = [
-            0, 7,  # [>=min, <max) -- 0%, 2%, 4%, 8%, 16%, 32%, 64%, 100%
-            0, 7,
-            0, 7,
-            0, 7,
-            0, 7,
-        ]
-        for (smaller, part_dim, part_size) in self.partitions:
-            if smaller:
-                partition_state[part_dim * 2 + 1] = min(
-                    partition_state[part_dim * 2 + 1], part_size + 1)
+        if self.manual_partition is None:
+            # 0, 6 -> 0-64%
+            # 6, 7 -> 64-100%
+            partition_state = [
+                0, 7,  # [>=min, <max) -- 0%, 2%, 4%, 8%, 16%, 32%, 64%, 100%
+                0, 7,
+                0, 7,
+                0, 7,
+                0, 7,
+            ]
+            for (smaller, part_dim, part_size) in self.partitions:
+                if smaller:
+                    partition_state[part_dim * 2 + 1] = min(
+                        partition_state[part_dim * 2 + 1], part_size + 1)
+                else:
+                    partition_state[part_dim * 2] = max(
+                        partition_state[part_dim * 2], part_size + 1)
+            if onehot:
+                self.state.extend(onehot_encode(partition_state, 7))
             else:
-                partition_state[part_dim * 2] = max(
-                    partition_state[part_dim * 2], part_size + 1)
-        if onehot:
-            self.state.extend(onehot_encode(partition_state, 7))
+                self.state.extend(partition_state)
         else:
-            self.state.extend(partition_state)
+            if onehot:
+                partition_state = [0] * 70
+                partition_state[self.manual_partition] = 1
+                self.state.extend(partition_state)
+            else:
+                partition_state = [0] * 10
+                partition_state[0] = self.manual_partition
+                self.state.extend(partition_state)
         self.state = np.array(self.state)
 
     def get_state(self):
@@ -216,7 +228,7 @@ class Tree:
         self.onehot_state = onehot_state
 
         self.rules = rules
-        self.root = self.create_node(0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1, None)
+        self.root = self.create_node(0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1, None, None)
         if (self.refinements["region_compaction"]):
             self.refinement_region_compaction(self.root)
         self.current_node = self.root
@@ -224,8 +236,8 @@ class Tree:
         self.depth = 1
         self.node_count = 1
 
-    def create_node(self, id, ranges, rules, depth, partitions):
-        node = Node(id, ranges, rules, depth, self.onehot_state, partitions)
+    def create_node(self, id, ranges, rules, depth, partitions, manual_partition):
+        node = Node(id, ranges, rules, depth, self.onehot_state, partitions, manual_partition)
 
         if self.refinements["rule_overlay"]:
             self.refinement_rule_overlay(node)
@@ -261,6 +273,30 @@ class Tree:
         self.nodes_to_cut.extend(children)
         self.current_node = self.nodes_to_cut[-1]
 
+    def partition_cutsplit(self):
+        assert self.current_node is self.root
+        from cutsplit import CutSplit
+        self._split(self.root, CutSplit(self.rules))
+
+    def partition_efficuts(self):
+        assert self.current_node is self.root
+        from efficuts import EffiCuts
+        self._split(self.root, EffiCuts(self.rules))
+
+    def _split(self, node, splitter):
+        parts = [p for p in splitter.separate_rules(self.rules) if len(p) > 0]
+        assert len(self.rules) == sum(len(s) for s in parts)
+        print(splitter, [len(s) for s in parts])
+
+        children = []
+        for i, p in enumerate(parts):
+            c = self.create_node(
+                self.node_count, node.ranges, p, node.depth + 1, [], i)
+            self.node_count += 1
+            children.append(c)
+        node.action = ("partition", 0, 0)
+        self.update_tree(node, children)
+
     def partition_current_node(self, part_dim, part_size):
         return self.partition_node(self.current_node, part_dimension, part_size)
 
@@ -293,12 +329,12 @@ class Tree:
         left_part = list(node.partitions)
         left_part.append((True, part_dim, part_size))
         left = self.create_node(
-            self.node_count, node.ranges, small_rules, node.depth + 1, left_part)
+            self.node_count, node.ranges, small_rules, node.depth + 1, left_part, None)
         self.node_count += 1
         right_part = list(node.partitions)
         right_part.append((False, part_dim, part_size))
         right = self.create_node(
-            self.node_count, node.ranges, big_rules, node.depth + 1, right_part)
+            self.node_count, node.ranges, big_rules, node.depth + 1, right_part, None)
         self.node_count += 1
 
         children = [left, right]
@@ -331,7 +367,7 @@ class Tree:
                     child_rules.append(rule)
 
             child = self.create_node(
-                self.node_count, child_ranges, child_rules, node.depth + 1, node.partitions)
+                self.node_count, child_ranges, child_rules, node.depth + 1, node.partitions, node.manual_partition)
             children.append(child)
             self.node_count += 1
 
@@ -371,7 +407,7 @@ class Tree:
 
             # create new child
             child = self.create_node(
-                self.node_count, child_ranges, child_rules, node.depth + 1, node.partitions)
+                self.node_count, child_ranges, child_rules, node.depth + 1, node.partitions, node.manual_partition)
             children.append(child)
             self.node_count += 1
 
@@ -415,7 +451,7 @@ class Tree:
                     child_rules.append(rule)
 
             child = self.create_node(
-                self.node_count, child_ranges, child_rules, node.depth + 1, node.partitions)
+                self.node_count, child_ranges, child_rules, node.depth + 1, node.partitions, node.manual_partition)
             children.append(child)
             self.node_count += 1
 

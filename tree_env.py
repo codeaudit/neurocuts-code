@@ -35,6 +35,7 @@ class TreeEnv(MultiAgentEnv):
             max_actions_per_episode=5000,
             max_depth=100,
             partition_enabled=False,
+            force_partition=None,
             leaf_value_fn=None,
             penalty_fn=None,
             q_learning=False,
@@ -79,6 +80,7 @@ class TreeEnv(MultiAgentEnv):
         self.cut_weight = cut_weight
         self.rules_file = rules_file
         self.partition_enabled = partition_enabled
+        self.force_partition = force_partition
         self.rules = load_rules_from_file(rules_file)
         self.leaf_threshold = leaf_threshold
         self.onehot_state = onehot_state
@@ -141,8 +143,21 @@ class TreeEnv(MultiAgentEnv):
             self.tree.root.id: self.tree.root,
         }
         self.child_map = {}
+
+        if self.force_partition:
+            if self.force_partition == "cutsplit":
+                self.tree.partition_cutsplit()
+            elif self.force_partition == "efficuts":
+                self.tree.partition_efficuts()
+            else:
+                assert False, self.force_partition
+            for c in self.tree.root.children:
+                self.node_map[c.id] = c
+            self.child_map[self.tree.root.id] = [c.id for c in self.tree.root.children]
+
+        start = self.tree.current_node
         return {
-            self.tree.root.id: self._encode_state(self.tree.root)
+            start.id: self._encode_state(start)
         }
 
     def _zeros(self):

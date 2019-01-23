@@ -133,7 +133,7 @@ class EffiCuts(object):
             else:
                 index = index << 1
             rule_subsets[index].append(rule)
-        return rule_subsets
+        return self.merge_rule_subsets(rule_subsets)
 
     def merge_rule_subsets(self, rule_subsets):
         result_subsets = []
@@ -179,7 +179,6 @@ class EffiCuts(object):
     def train(self):
         print(datetime.datetime.now(), "Algorithm EffiCuts")
         rule_subsets = self.separate_rules(self.rules)
-        rule_subsets = self.merge_rule_subsets(rule_subsets)
 
         result = {"memory_access": 0, "bytes_per_rule": 0}
         for rule_subset in rule_subsets:
