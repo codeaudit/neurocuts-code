@@ -118,7 +118,7 @@ if __name__ == "__main__":
 #                    [512, 512],
 #                ]),
             },
-            "vf_share_layers": True,
+            "vf_share_layers": False,
             "entropy_coeff": 0.01, #grid_search([0.0, 0.01]),
             "sgd_minibatch_size": 100 if args.test else 1000,
             "sample_batch_size": 200 if args.test else 5000,
@@ -155,7 +155,7 @@ if __name__ == "__main__":
                     "onehot_state": True,
                     "q_learning": q_learning,
                     "partition_enabled": False,
-                    "force_partition": grid_search(["cutsplit", "efficuts", None]),
+                    "force_partition": "efficuts",
                     "max_depth": 500,
                     "rules":
                         os.path.abspath("classbench/acl1_seed_1000")
@@ -164,8 +164,8 @@ if __name__ == "__main__":
                             os.path.abspath("classbench/acl4_seed_10000"),
                             os.path.abspath("classbench/fw1_seed_10000"),
                             os.path.abspath("classbench/fw3_seed_10000"),
+                            os.path.abspath("classbench/fw4_seed_1000"),
                             os.path.abspath("classbench/fw4_seed_10000"),
-                            os.path.abspath("classbench/fw5_seed_10000"),
                             os.path.abspath("classbench/ipc1_seed_10000"),
                             os.path.abspath("classbench/acl2_seed_100000"),
                             os.path.abspath("classbench/acl3_seed_100000"),
@@ -179,7 +179,7 @@ if __name__ == "__main__":
                     "leaf_value_fn": None, #grid_search([None, "constant"]),
                     "penalty_fn": None, #grid_search([None, "useless_nodes", "correct_useless"]),
                     "max_actions": 1000 if args.test else 15000,
-                    "cut_weight": 0.001,
+                    "cut_weight": 0, #0.001,
 #                    "rules": grid_search(
 #                        [os.path.abspath(x) for x in glob.glob("classbench/*10000")]),
 #                    "leaf_value_fn": grid_search([None, "len"]),

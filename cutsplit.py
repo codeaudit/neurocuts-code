@@ -22,12 +22,12 @@ class CutSplit(object):
         def update_bins(rule, src_bins, dst_bins, bin_size):
             src_ip_range, dst_ip_range = compute_ip_ranges(rule)
             if src_ip_range < dst_ip_range:
-                for i in range(rule.ranges[0] // bin_size,
-                        math.ceil(rule.ranges[1] / bin_size)):
+                for i in range(int(rule.ranges[0] // bin_size),
+                        int(math.ceil(rule.ranges[1] / bin_size))):
                     src_bins[i] += 1
             else:
-                for i in range(rule.ranges[2] // bin_size,
-                        math.ceil(rule.ranges[3] / bin_size)):
+                for i in range(int(rule.ranges[2] // bin_size),
+                        int(math.ceil(rule.ranges[3] / bin_size))):
                     dst_bins[i] += 1
 
         # separate rules based on src and dst ip ranges
@@ -80,13 +80,13 @@ class CutSplit(object):
                     (src_sum == dst_sum and \
                         len(rule_subsets[1]) <= len(rule_subsets[2])):
                 rule_subsets[1].append(rule)
-                for i in range(rule.ranges[0] // bin_size,
-                        math.ceil(rule.ranges[1] / bin_size)):
+                for i in range(int(rule.ranges[0] // bin_size),
+                        int(math.ceil(rule.ranges[1] / bin_size))):
                     src_bins[i] += 1
             else:
                 rule_subsets[2].append(rule)
-                for i in range(rule.ranges[2] // bin_size,
-                        math.ceil(rule.ranges[3] / bin_size)):
+                for i in range(int(rule.ranges[2] // bin_size),
+                        int(math.ceil(rule.ranges[3] / bin_size))):
                     dst_bins[i] += 1
 
             smallrule_idx += 1

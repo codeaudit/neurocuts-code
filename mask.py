@@ -13,11 +13,6 @@ class PartitionMaskModel(Model):
     def _build_layers_v2(self, input_dict, num_outputs, options):
         mask = input_dict["obs"]["action_mask"]
 
-        if num_outputs != mask.shape[1].value:
-            raise ValueError(
-                "This model assumes num outputs is equal to max avail actions",
-                num_outputs, mask)
-
         last_layer = input_dict["obs"]["real_obs"]
         hiddens = options["fcnet_hiddens"]
         for i, size in enumerate(hiddens):
@@ -34,6 +29,9 @@ class PartitionMaskModel(Model):
             weights_initializer=normc_initializer(0.01),
             activation_fn=None,
             scope="fc_out")
+
+        if num_outputs == 1:
+            return action_logits, last_layer
 
         # Mask out invalid actions (use tf.float32.min for stability)
         inf_mask = tf.maximum(tf.log(mask), tf.float32.min)
