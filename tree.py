@@ -482,10 +482,10 @@ class Tree:
                 # compute bytes per rule
                 if self.is_leaf(node):
                     result["bytes_per_rule"] += 2 + 16 * len(node.rules)
-                    result["leaf_node"] += 1
+                    result["num_leaf_node"] += 1
                 else:
                     result["bytes_per_rule"] += 2 + 16 + 4 * len(node.children)
-                    result["nonleaf_node"] += 1
+                    result["num_nonleaf_node"] += 1
 
                 # compute memory access
                 if self.is_leaf(node):
