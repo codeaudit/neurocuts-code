@@ -121,10 +121,12 @@ if __name__ == "__main__":
             "train_batch_size": 200 if args.test else 5000,
         }
 
+    MAX_AGENTS = int(args.max_agents)
+
     def policy_mapper(agent_id):
         if type(agent_id) is tuple:
-            if agent_id[0] >= args.max_agents - 1:
-                return "partition_{}".format(args.max_agents - 1)
+            if agent_id[0] >= MAX_AGENTS - 1:
+                return "partition_{}".format(MAX_AGENTS - 1)
             else:
                 return "partition_{}".format(agent_id[0])
         return "default"
@@ -140,11 +142,11 @@ if __name__ == "__main__":
     })
     pol_graphs = {
         "partition_{}".format(i):
-            (PPOPolicyGraph, o_sp, a_sp, {}) for i in range(args.max_agents)
+            (PPOPolicyGraph, o_sp, a_sp, {}) for i in range(MAX_AGENTS)
     }
 
     run_experiments({
-        "neurocuts_nagents_{}".format(args.max_agents): {
+        "neurocuts_nagents_{}".format(MAX_AGENTS): {
             "run": args.run,
             "env": "tree_env",
             "stop": {
