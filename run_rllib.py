@@ -79,6 +79,8 @@ if __name__ == "__main__":
             "model": {
                 "custom_model": "min_child_q_func",
             },
+            "evaluation_interval": 3,
+            "evaluation_num_episodes": 3,
             "hiddens": [],  # don't postprocess the action scores
             "train_batch_size": 32,
             "dueling": False,
@@ -107,7 +109,7 @@ if __name__ == "__main__":
                 "fcnet_hiddens": [512, 512],
             },
             "vf_share_layers": False,
-            "entropy_coeff": 0.01, #grid_search([0.0, 0.01]),
+            "entropy_coeff": 0.01,
             "sgd_minibatch_size": 100 if args.test else 1000,
             "sample_batch_size": 200 if args.test else 5000,
             "train_batch_size": 200 if args.test else 5000,
@@ -133,8 +135,11 @@ if __name__ == "__main__":
                 "env_config": dict({
                     "q_learning": q_learning,
                     "partition_enabled": False,
-                    "force_partition": "efficuts",
+                    "force_partition": None,
                     "max_depth": 500,
+                    "max_actions": 1000 if args.test else 15000,
+                    "cut_weight": 0,
+                    "leaf_value_fn": None,
                     "rules":
                         os.path.abspath("classbench/acl1_seed_1000")
                         if args.test else
@@ -154,9 +159,6 @@ if __name__ == "__main__":
                             os.path.abspath("classbench/fw5_seed_100000"),
                             os.path.abspath("classbench/ipc1_seed_100000"),
                         ]),
-                    "leaf_value_fn": None, #grid_search([None, "constant"]),
-                    "max_actions": 1000 if args.test else 15000,
-                    "cut_weight": 0, #0.001,
                 }, **extra_env_config),
             }, **extra_config),
         },

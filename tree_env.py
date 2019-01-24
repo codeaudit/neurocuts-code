@@ -66,24 +66,23 @@ class TreeEnv(MultiAgentEnv):
         self.child_map = None
         self.q_learning = q_learning
         self.max_cuts_per_dimension = max_cuts_per_dimension
+        if self.partition_enabled:
+            self.num_part_levels = NUM_PART_LEVELS
+        else:
+            self.num_part_levels = 0
         if q_learning:
+            if self.partition_enabled:
+                raise ValueError("partition not supported for Q learning")
             num_actions = 5 * max_cuts_per_dimension
             self.max_children = 2**max_cuts_per_dimension
-            if self.partition_enabled:
-                num_actions += 5 * NUM_PART_LEVELS
             self.action_space = Discrete(num_actions)
             self.observation_space = Tuple([
                 Box(1, self.max_children, (), dtype=np.float32),  # nchild
                 Box(0, 1, (), dtype=np.float32),  # is finished
                 Box(0, 1, (self.max_children, 278), dtype=np.float32)])
         else:
-            if self.partition_enabled:
-                num_part_levels = NUM_PART_LEVELS
-            else:
-                num_part_levels = 0
-            self.num_part_levels = num_part_levels
             self.action_space = Tuple(
-                [Discrete(5), Discrete(max_cuts_per_dimension + num_part_levels)])
+                [Discrete(5), Discrete(max_cuts_per_dimension + self.num_part_levels)])
             self.observation_space = Dict({
                 "real_obs": Box(0, 1, (278,), dtype=np.float32),
                 "action_mask": Box(
@@ -126,6 +125,8 @@ class TreeEnv(MultiAgentEnv):
 
     def _zeros(self):
         zeros = [0] * 278
+        if self.q_learning:
+            return zeros
         return {
             "real_obs": zeros,
             "action_mask": [1] * (5 + self.max_cuts_per_dimension + self.num_part_levels),
@@ -135,7 +136,8 @@ class TreeEnv(MultiAgentEnv):
         if self.q_learning:
             state = [self._zeros() for _ in range(self.max_children)]
             state[0] = node.get_state()
-            return [1, 0, state]
+            obs = [1, 0, state]
+            return obs
         else:
             if node.depth > 1:
                 action_mask = (
@@ -172,18 +174,11 @@ class TreeEnv(MultiAgentEnv):
             node = self.node_map[node_id]
             orig_action = action
             if np.isscalar(action):
-                if int(action) >= 5 * self.max_cuts_per_dimension:
-                    assert self.partition_enabled, action
-                    action = int(action) - 5 * self.max_cuts_per_dimension
-                    part_num = action % 5
-                    part_size = action // 5
-                    action = [part_num, part_size]
-                    partition = True
-                else:
-                    partition = False
-                    cut_dimension = int(action) % 5
-                    cut_num = int(action) // 5
-                    action = [cut_dimension, cut_num]
+                assert not self.partition_enabled, action
+                partition = False
+                cut_dimension = int(action) % 5
+                cut_num = int(action) // 5
+                action = [cut_dimension, cut_num]
             else:
                 if action[1] >= self.max_cuts_per_dimension:
                     assert self.partition_enabled, action
@@ -251,6 +246,7 @@ class TreeEnv(MultiAgentEnv):
                 "memory_access": result["memory_access"],
                 "exceeded_max_depth": len(self.exceeded_max_depth),
                 "tree_depth": self.tree.get_depth(),
+                "nodes_remaining": len(nodes_remaining),
                 "rules_remaining": len(rules_remaining),
                 "num_nodes": len(self.node_map),
                 "useless_fraction": float(len(
