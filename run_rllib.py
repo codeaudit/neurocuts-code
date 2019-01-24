@@ -66,8 +66,7 @@ if __name__ == "__main__":
             max_depth=env_config["max_depth"],
             max_actions_per_episode=env_config["max_actions"],
             cut_weight=env_config["cut_weight"],
-            force_partition=env_config["force_partition"],
-            partition_enabled=env_config["partition_enabled"]))
+            partition_mode=env_config["partition_mode"]))
 
     extra_config = {}
     extra_env_config = {}
@@ -116,11 +115,11 @@ if __name__ == "__main__":
         }
 
     run_experiments({
-        "neurocuts_splitter": {
+        "neurocuts_weight": {
             "run": args.run,
             "env": "tree_env",
             "stop": {
-#                "timesteps_total": 10000000,
+                "timesteps_total": 1000000,
             },
             "config": dict({
                 "num_gpus": 0.2 if args.gpu else 0,
@@ -134,31 +133,36 @@ if __name__ == "__main__":
                 },
                 "env_config": dict({
                     "q_learning": q_learning,
-                    "partition_enabled": False,
-                    "force_partition": None,
+                    "partition_mode": grid_search([None, "top"]),
                     "max_depth": 500,
                     "max_actions": 1000 if args.test else 15000,
-                    "cut_weight": 0,
+                    "cut_weight": grid_search([
+                        0, 0.0001, 0.005, 0.001, 0.005, 0.01
+                    ]),
                     "leaf_value_fn": None,
                     "rules":
                         os.path.abspath("classbench/acl1_seed_1000")
                         if args.test else
                         grid_search([
-                            os.path.abspath("classbench/acl4_seed_10000"),
-                            os.path.abspath("classbench/fw1_seed_10000"),
-                            os.path.abspath("classbench/fw3_seed_10000"),
-                            os.path.abspath("classbench/fw4_seed_1000"),
-                            os.path.abspath("classbench/fw4_seed_10000"),
-                            os.path.abspath("classbench/ipc1_seed_10000"),
-                            os.path.abspath("classbench/acl2_seed_100000"),
-                            os.path.abspath("classbench/acl3_seed_100000"),
-                            os.path.abspath("classbench/acl4_seed_100000"),
-                            os.path.abspath("classbench/fw1_seed_100000"),
-                            os.path.abspath("classbench/fw3_seed_100000"),
-                            os.path.abspath("classbench/fw4_seed_100000"),
-                            os.path.abspath("classbench/fw5_seed_100000"),
-                            os.path.abspath("classbench/ipc1_seed_100000"),
+                            os.path.abspath(x) for x in
+                            glob.glob("classbench/*_1000")
                         ]),
+#                        grid_search([
+#                            os.path.abspath("classbench/acl4_seed_1000"),
+#                            os.path.abspath("classbench/fw1_seed_10000"),
+#                            os.path.abspath("classbench/fw3_seed_10000"),
+#                            os.path.abspath("classbench/fw4_seed_1000"),
+#                            os.path.abspath("classbench/fw4_seed_10000"),
+#                            os.path.abspath("classbench/ipc1_seed_10000"),
+#                            os.path.abspath("classbench/acl2_seed_100000"),
+#                            os.path.abspath("classbench/acl3_seed_100000"),
+#                            os.path.abspath("classbench/acl4_seed_100000"),
+#                            os.path.abspath("classbench/fw1_seed_100000"),
+#                            os.path.abspath("classbench/fw3_seed_100000"),
+#                            os.path.abspath("classbench/fw4_seed_100000"),
+#                            os.path.abspath("classbench/fw5_seed_100000"),
+#                            os.path.abspath("classbench/ipc1_seed_100000"),
+#                        ]),
                 }, **extra_env_config),
             }, **extra_config),
         },

@@ -32,8 +32,7 @@ class TreeEnv(MultiAgentEnv):
             max_cuts_per_dimension=5,
             max_actions_per_episode=5000,
             max_depth=100,
-            partition_enabled=False,
-            force_partition=None,
+            partition_mode=None,
             leaf_value_fn=None,
             q_learning=False,
             cut_weight=0.0):
@@ -52,10 +51,15 @@ class TreeEnv(MultiAgentEnv):
         else:
             raise ValueError("Unknown value fn: {}".format(leaf_value_fn))
 
+        assert partition_mode in [None, "top", "efficuts", "cutsplit"]
+        self.partition_enabled = partition_mode == "top"
+        if partition_mode in ["efficuts", "cutsplit"]:
+            self.force_partition = partition_mode
+        else:
+            self.force_partition = False
+
         self.cut_weight = cut_weight
         self.rules_file = rules_file
-        self.partition_enabled = partition_enabled
-        self.force_partition = force_partition
         self.rules = load_rules_from_file(rules_file)
         self.leaf_threshold = leaf_threshold
         self.max_actions_per_episode = max_actions_per_episode
@@ -87,7 +91,7 @@ class TreeEnv(MultiAgentEnv):
                 "real_obs": Box(0, 1, (278,), dtype=np.float32),
                 "action_mask": Box(
                     0, 1,
-                    (5 + max_cuts_per_dimension + num_part_levels,),
+                    (5 + max_cuts_per_dimension + self.num_part_levels,),
                     dtype=np.float32),
             })
 
@@ -215,10 +219,11 @@ class TreeEnv(MultiAgentEnv):
             for node_id, action in action_dict.items():
                 if node_id == 0:
                     continue
-                obs[node_id] = self._encode_child_state(self.node_map[node_id])
-                rew[node_id] = -1
-                done[node_id] = True
-                info[node_id] = {}
+                agent_id = self._agentof(self.node_map[node_id])
+                obs[agent_id] = self._encode_child_state(self.node_map[node_id])
+                rew[agent_id] = -1
+                done[agent_id] = True
+                info[agent_id] = {}
         else:
             obs, rew, done, info = {}, {}, {}, {}
 
@@ -227,8 +232,8 @@ class TreeEnv(MultiAgentEnv):
                 self.tree.get_current_node() is None):
             if self.q_learning:
                 # terminate the root agent last always to preserve the stats
-                obs[0] = self._encode_child_state(self.tree.root)
-                rew[0] = -1
+                obs[self._agentof(self.tree.root)] = self._encode_child_state(self.tree.root)
+                rew[self._agentof(self.tree.root)] = -1
             else:
                 zero_state = self._zeros()
                 rew = self.compute_rewards(self.cut_weight)
@@ -241,7 +246,7 @@ class TreeEnv(MultiAgentEnv):
                 for r in n.rules:
                     rules_remaining.add(str(r))
                 largest_node_remaining = max(largest_node_remaining, len(n.rules))
-            info[0] = {
+            info[self._agentof(self.tree.root)] = {
                 "bytes_per_rule": result["bytes_per_rule"],
                 "memory_access": result["memory_access"],
                 "exceeded_max_depth": len(self.exceeded_max_depth),
@@ -259,11 +264,14 @@ class TreeEnv(MultiAgentEnv):
             return obs, rew, {"__all__": True}, info
         else:
             needs_split = [self.tree.get_current_node()]
-            obs.update({s.id: self._encode_state(s) for s in needs_split})
-            rew.update({s.id: 0 for s in needs_split})
+            obs.update({self._agentof(s): self._encode_state(s) for s in needs_split})
+            rew.update({self._agentof(s): 0 for s in needs_split})
             done.update({"__all__": False})
-            info.update({s.id: {} for s in needs_split})
+            info.update({self._agentof(s): {} for s in needs_split})
             return obs, rew, done, info
+
+    def _agentof(self, node):
+        return node.id
 
     def action_tuple_to_cut(self, node, action):
         cut_dimension = action[0]
