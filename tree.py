@@ -285,6 +285,7 @@ class Tree:
 
     def _split(self, node, splitter):
         parts = [p for p in splitter.separate_rules(self.rules) if len(p) > 0]
+        parts.sort(key=lambda x: -len(x))
         assert len(self.rules) == sum(len(s) for s in parts)
         print(splitter, [len(s) for s in parts])
 

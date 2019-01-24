@@ -124,7 +124,7 @@ class TreeEnv(MultiAgentEnv):
 
         start = self.tree.current_node
         return {
-            start.id: self._encode_state(start)
+            self._agentof(start): self._encode_state(start)
         }
 
     def _zeros(self):
@@ -174,7 +174,8 @@ class TreeEnv(MultiAgentEnv):
         assert len(action_dict) == 1  # one at a time processing
 
         new_children = []
-        for node_id, action in action_dict.items():
+        for agent_id, action in action_dict.items():
+            node_id = self._nodeof(agent_id)
             node = self.node_map[node_id]
             orig_action = action
             if np.isscalar(action):
@@ -216,7 +217,8 @@ class TreeEnv(MultiAgentEnv):
 
         if self.q_learning:
             obs, rew, done, info = {}, {}, {}, {}
-            for node_id, action in action_dict.items():
+            for agent_id, action in action_dict.items():
+                node_id = self._nodeof(agent_id)
                 if node_id == 0:
                     continue
                 agent_id = self._agentof(self.node_map[node_id])
@@ -237,8 +239,9 @@ class TreeEnv(MultiAgentEnv):
             else:
                 zero_state = self._zeros()
                 rew = self.compute_rewards(self.cut_weight)
-                obs = {node_id: zero_state for node_id in rew.keys()}
-                info = {node_id: {} for node_id in rew.keys()}
+                rew_keys = [self._nodeof(a) for a in rew.keys()]
+                obs = {self._agentof(node_id): zero_state for node_id in rew_keys}
+                info = {self._agentof(node_id): {} for node_id in rew_keys}
             result = self.tree.compute_result()
             rules_remaining = set()
             largest_node_remaining = 0
@@ -271,7 +274,21 @@ class TreeEnv(MultiAgentEnv):
             return obs, rew, done, info
 
     def _agentof(self, node):
-        return node.id
+        if isinstance(node, int):
+            node = self.node_map[node]
+        if self.force_partition:
+            if node.id == 0:
+                return (0, node.id)
+            else:
+                return (node.manual_partition, node.id)
+        else:
+            return node.id
+
+    def _nodeof(self, agent_id):
+        if self.force_partition:
+            return agent_id[1]
+        else:
+            return agent_id
 
     def action_tuple_to_cut(self, node, action):
         cut_dimension = action[0]
@@ -315,7 +332,7 @@ class TreeEnv(MultiAgentEnv):
                         cuts_to_go[node_id] = sum_child_cuts
                         num_updates += 1
         rew = {
-            node_id:
+            self._agentof(node_id):
                 - depth
                 - (cut_weight * cuts_to_go[node_id])
             for (node_id, depth) in depth_to_go.items()

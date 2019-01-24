@@ -3,11 +3,15 @@ import os
 import glob
 import json
 
+from gym.spaces import Tuple, Box, Discrete, Dict
+import numpy as np
+
 from ray.rllib.models import ModelCatalog
 import ray
 from ray import tune
 from ray.tune import run_experiments, grid_search
 from ray.tune.registry import register_env
+from ray.rllib.agents.ppo.ppo_policy_graph import PPOPolicyGraph
 
 from tree_env import TreeEnv
 from q_func import MinChildQFunc
@@ -20,6 +24,7 @@ parser.add_argument("--gpu", action="store_true")
 parser.add_argument("--test", action="store_true")
 parser.add_argument("--env", type=str, default="acl1_100")
 parser.add_argument("--num-workers", type=int, default=0)
+parser.add_argument("--max-agents", type=int, default=1)
 parser.add_argument("--redis-address", type=str, default=None)
 
 
@@ -27,6 +32,8 @@ def on_episode_end(info):
     """Report tree custom metrics"""
     episode = info["episode"]
     info = episode.last_info_for(0)
+    if not info:
+        info = episode.last_info_for((0, 0))
     pid = info["rules_file"].split("/")[-1]
     out = os.path.abspath(os.path.expanduser("~/valid_trees-{}.txt".format(pid)))
     if info["nodes_remaining"] == 0:
@@ -114,8 +121,30 @@ if __name__ == "__main__":
             "train_batch_size": 200 if args.test else 5000,
         }
 
+    def policy_mapper(agent_id):
+        if type(agent_id) is tuple:
+            if agent_id[0] >= args.max_agents - 1:
+                return "partition_{}".format(args.max_agents - 1)
+            else:
+                return "partition_{}".format(agent_id[0])
+        return "default"
+
+    a_sp = Tuple(
+        [Discrete(5), Discrete(5 + 0)])
+    o_sp = Dict({
+        "real_obs": Box(0, 1, (278,), dtype=np.float32),
+        "action_mask": Box(
+            0, 1,
+            (5 + 5 + 0,),
+            dtype=np.float32),
+    })
+    pol_graphs = {
+        "partition_{}".format(i):
+            (PPOPolicyGraph, o_sp, a_sp, {}) for i in range(args.max_agents)
+    }
+
     run_experiments({
-        "neurocuts_weight": {
+        "neurocuts_nagents_{}".format(args.max_agents): {
             "run": args.run,
             "env": "tree_env",
             "stop": {
@@ -131,14 +160,16 @@ if __name__ == "__main__":
                     "on_sample_end": tune.function(erase_done_values)
                         if q_learning else None,
                 },
+                "multiagent": {
+                    "policy_mapping_fn": tune.function(policy_mapper),
+                    "policy_graphs": pol_graphs,
+                },
                 "env_config": dict({
                     "q_learning": q_learning,
-                    "partition_mode": grid_search([None, "top"]),
+                    "partition_mode": "efficuts", # grid_search([None, "top"]),
                     "max_depth": 500,
                     "max_actions": 1000 if args.test else 15000,
-                    "cut_weight": grid_search([
-                        0, 0.0001, 0.005, 0.001, 0.005, 0.01
-                    ]),
+                    "cut_weight": 0, #grid_search([0, 0.0001, 0.005, 0.001, 0.005, 0.01]),
                     "leaf_value_fn": None,
                     "rules":
                         os.path.abspath("classbench/acl1_seed_1000")
