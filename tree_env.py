@@ -29,15 +29,12 @@ class TreeEnv(MultiAgentEnv):
             self,
             rules_file,
             leaf_threshold=16,
-            onehot_state=True,
-            order="dfs",
             max_cuts_per_dimension=5,
             max_actions_per_episode=5000,
             max_depth=100,
             partition_enabled=False,
             force_partition=None,
             leaf_value_fn=None,
-            penalty_fn=None,
             q_learning=False,
             cut_weight=0.0):
 
@@ -55,35 +52,12 @@ class TreeEnv(MultiAgentEnv):
         else:
             raise ValueError("Unknown value fn: {}".format(leaf_value_fn))
 
-        if penalty_fn is None:
-            self.penalty_fn = lambda node: 0
-        elif penalty_fn == "correct_useless":
-            def penalty(node):
-                if node.is_useless():
-                    return -1
-                else:
-                    return 0
-
-            self.penalty_fn = penalty
-        elif penalty_fn == "useless_nodes":
-            def penalty(node):
-                if node.is_useless():
-                    return 10
-                else:
-                    return 0
-
-            self.penalty_fn = penalty
-        else:
-            raise ValueError("Unknown penalty fn: {}".format(penalty_fn))
-
-        self.order = order
         self.cut_weight = cut_weight
         self.rules_file = rules_file
         self.partition_enabled = partition_enabled
         self.force_partition = force_partition
         self.rules = load_rules_from_file(rules_file)
         self.leaf_threshold = leaf_threshold
-        self.onehot_state = onehot_state
         self.max_actions_per_episode = max_actions_per_episode
         self.max_depth = max_depth
         self.num_actions = None
@@ -98,16 +72,10 @@ class TreeEnv(MultiAgentEnv):
             if self.partition_enabled:
                 num_actions += 5 * NUM_PART_LEVELS
             self.action_space = Discrete(num_actions)
-            if onehot_state:
-                self.observation_space = Tuple([
-                    Box(1, self.max_children, (), dtype=np.float32),  # nchild
-                    Box(0, 1, (), dtype=np.float32),  # is finished
-                    Box(0, 1, (self.max_children, 278), dtype=np.float32)])
-            else:
-                self.observation_space = Tuple([
-                    Box(1, self.max_children, (), dtype=np.float32),
-                    Box(0, 1, (), dtype=np.float32),
-                    Box(0, 1, (self.max_children, 36), dtype=np.float32)])
+            self.observation_space = Tuple([
+                Box(1, self.max_children, (), dtype=np.float32),  # nchild
+                Box(0, 1, (), dtype=np.float32),  # is finished
+                Box(0, 1, (self.max_children, 278), dtype=np.float32)])
         else:
             if self.partition_enabled:
                 num_part_levels = NUM_PART_LEVELS
@@ -116,12 +84,8 @@ class TreeEnv(MultiAgentEnv):
             self.num_part_levels = num_part_levels
             self.action_space = Tuple(
                 [Discrete(5), Discrete(max_cuts_per_dimension + num_part_levels)])
-            if onehot_state:
-                x = 278
-            else:
-                x = 36
             self.observation_space = Dict({
-                "real_obs": Box(0, 1, (x,), dtype=np.float32),
+                "real_obs": Box(0, 1, (278,), dtype=np.float32),
                 "action_mask": Box(
                     0, 1,
                     (5 + max_cuts_per_dimension + num_part_levels,),
@@ -138,7 +102,7 @@ class TreeEnv(MultiAgentEnv):
                 "region_compaction" : False,
                 "rule_pushup"       : False,
                 "equi_dense"        : False,
-            }, onehot_state=self.onehot_state)
+            }, onehot_state=True)
         self.node_map = {
             self.tree.root.id: self.tree.root,
         }
@@ -161,10 +125,7 @@ class TreeEnv(MultiAgentEnv):
         }
 
     def _zeros(self):
-        if self.onehot_state:
-            zeros = [0] * 278
-        else:
-            zeros = [0] * 36
+        zeros = [0] * 278
         return {
             "real_obs": zeros,
             "action_mask": [1] * (5 + self.max_cuts_per_dimension + self.num_part_levels),
@@ -204,8 +165,7 @@ class TreeEnv(MultiAgentEnv):
         return [max(1, len(children)), finished, state]
 
     def step(self, action_dict):
-        if self.order == "dfs":
-            assert len(action_dict) == 1  # one at a time processing
+        assert len(action_dict) == 1  # one at a time processing
 
         new_children = []
         for node_id, action in action_dict.items():
@@ -248,15 +208,12 @@ class TreeEnv(MultiAgentEnv):
                     num_leaf += 1
             self.child_map[node_id] = [c.id for c in children]
 
-        if self.order == "bfs":
-            nodes_remaining = new_children
-        else:
-            node = self.tree.get_current_node()
-            while node and (self.tree.is_leaf(node) or node.depth > self.max_depth):
-                node = self.tree.get_next_node()
-                if node and node.depth > self.max_depth:
-                    self.exceeded_max_depth.append(node)
-            nodes_remaining = self.tree.nodes_to_cut + self.exceeded_max_depth
+        node = self.tree.get_current_node()
+        while node and (self.tree.is_leaf(node) or node.depth > self.max_depth):
+            node = self.tree.get_next_node()
+            if node and node.depth > self.max_depth:
+                self.exceeded_max_depth.append(node)
+        nodes_remaining = self.tree.nodes_to_cut + self.exceeded_max_depth
 
         if self.q_learning:
             obs, rew, done, info = {}, {}, {}, {}
@@ -279,8 +236,6 @@ class TreeEnv(MultiAgentEnv):
                 rew[0] = -1
             else:
                 zero_state = self._zeros()
-#                rew = self.compute_rewards(
-#                    self.cut_weight if not nodes_remaining else 0.0)
                 rew = self.compute_rewards(self.cut_weight)
                 obs = {node_id: zero_state for node_id in rew.keys()}
                 info = {node_id: {} for node_id in rew.keys()}
@@ -296,25 +251,18 @@ class TreeEnv(MultiAgentEnv):
                 "memory_access": result["memory_access"],
                 "exceeded_max_depth": len(self.exceeded_max_depth),
                 "tree_depth": self.tree.get_depth(),
-                "nodes_remaining": len(nodes_remaining),
-                "largest_node_remaining": largest_node_remaining,
                 "rules_remaining": len(rules_remaining),
                 "num_nodes": len(self.node_map),
                 "useless_fraction": float(len(
                     [n for n in self.node_map.values() if n.is_useless()])) / len(self.node_map),
                 "partition_fraction": float(len(
                     [n for n in self.node_map.values() if n.is_partition()])) / len(self.node_map),
-                "mean_split_size": np.mean(
-                    [len(x) for x in self.child_map.values()]),
                 "num_splits": self.num_actions,
                 "rules_file": self.rules_file,
             }
             return obs, rew, {"__all__": True}, info
         else:
-            if self.order == "dfs":
-                needs_split = [self.tree.get_current_node()]
-            else:
-                needs_split = new_children
+            needs_split = [self.tree.get_current_node()]
             obs.update({s.id: self._encode_state(s) for s in needs_split})
             rew.update({s.id: 0 for s in needs_split})
             done.update({"__all__": False})
@@ -366,7 +314,6 @@ class TreeEnv(MultiAgentEnv):
             node_id:
                 - depth
                 - (cut_weight * cuts_to_go[node_id])
-                - self.penalty_fn(self.node_map[node_id])
             for (node_id, depth) in depth_to_go.items()
                 if node_id in self.child_map
         }

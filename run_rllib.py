@@ -30,22 +30,18 @@ def on_episode_end(info):
     pid = info["rules_file"].split("/")[-1]
     out = os.path.abspath(os.path.expanduser("~/valid_trees-{}.txt".format(pid)))
     if info["nodes_remaining"] == 0:
-        print("valid tree out will be", out)
         info["tree_depth_valid"] = info["tree_depth"]
         info["num_nodes_valid"] = info["num_nodes"]
         info["num_splits_valid"] = info["num_splits"]
-        info["mean_split_size_valid"] = info["mean_split_size"]
         info["bytes_per_rule_valid"] = info["bytes_per_rule"]
         info["memory_access_valid"] = info["memory_access"]
         with open(out, "a") as f:
             f.write(json.dumps(info))
             f.write("\n")
     else:
-        print("invalid tree out", out)
         info["tree_depth_valid"] = float("nan")
         info["num_nodes_valid"] = float("nan")
         info["num_splits_valid"] = float("nan")
-        info["mean_split_size_valid"] = float("nan")
         info["bytes_per_rule_valid"] = float("nan")
         info["memory_access_valid"] = float("nan")
     del info["rules_file"]
@@ -65,12 +61,9 @@ if __name__ == "__main__":
     register_env(
         "tree_env", lambda env_config: TreeEnv(
             env_config["rules"],
-            onehot_state=env_config["onehot_state"],
             q_learning=env_config["q_learning"],
             leaf_value_fn=env_config["leaf_value_fn"],
-            penalty_fn=env_config["penalty_fn"],
             max_depth=env_config["max_depth"],
-            order=env_config["order"],
             max_actions_per_episode=env_config["max_actions"],
             cut_weight=env_config["cut_weight"],
             force_partition=env_config["force_partition"],
@@ -111,26 +104,13 @@ if __name__ == "__main__":
         extra_config = {
             "model": {
                 "custom_model": "mask",
-                "fcnet_hiddens": [1024, 1024],
-#                grid_search([
-#                    [64, 64],
-#                    [256, 256],
-#                    [512, 512],
-#                ]),
+                "fcnet_hiddens": [512, 512],
             },
             "vf_share_layers": False,
             "entropy_coeff": 0.01, #grid_search([0.0, 0.01]),
             "sgd_minibatch_size": 100 if args.test else 1000,
             "sample_batch_size": 200 if args.test else 5000,
             "train_batch_size": 200 if args.test else 5000,
-        }
-    elif args.run == "IMPALA":
-        extra_config = {
-            "model": {
-                "custom_model": "mask",
-            },
-            "sample_batch_size": 5000,
-            "train_batch_size": 5000,
         }
 
     run_experiments({
@@ -151,8 +131,6 @@ if __name__ == "__main__":
                         if q_learning else None,
                 },
                 "env_config": dict({
-                    "order": "dfs",
-                    "onehot_state": True,
                     "q_learning": q_learning,
                     "partition_enabled": False,
                     "force_partition": "efficuts",
@@ -177,15 +155,8 @@ if __name__ == "__main__":
                             os.path.abspath("classbench/ipc1_seed_100000"),
                         ]),
                     "leaf_value_fn": None, #grid_search([None, "constant"]),
-                    "penalty_fn": None, #grid_search([None, "useless_nodes", "correct_useless"]),
                     "max_actions": 1000 if args.test else 15000,
                     "cut_weight": 0, #0.001,
-#                    "rules": grid_search(
-#                        [os.path.abspath(x) for x in glob.glob("classbench/*10000")]),
-#                    "leaf_value_fn": grid_search([None, "len"]),
-#                    "penalty_fn": grid_search([None, "noops"]),
-#                    "max_actions": grid_search([5000, 10000]),
-#                    "cut_weight": grid_search([0, 0.001]),
                 }, **extra_env_config),
             }, **extra_config),
         },
