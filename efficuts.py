@@ -181,14 +181,16 @@ class EffiCuts(object):
         rule_subsets = self.separate_rules(self.rules)
         rule_subsets = self.merge_rule_subsets(rule_subsets)
 
-        result = {"memory_access": 0, "bytes_per_rule": 0}
+        result = {"memory_access": 0, "bytes_per_rule": 0, "num_node": 0}
         for rule_subset in rule_subsets:
             result_subset = self.build_tree(rule_subset)
             result["memory_access"] += result_subset["memory_access"]
             result["bytes_per_rule"] += result_subset["bytes_per_rule"] * len(rule_subset)
+            result["num_node"] += result_subset["num_node"]
         result["bytes_per_rule"] /= len(self.rules)
 
-        print("%s Result %d %f" %
+        print("%s Result %d %f %d" %
             (datetime.datetime.now(),
             result["memory_access"],
-            result["bytes_per_rule"]))
+            result["bytes_per_rule"],
+            result["num_node"]))

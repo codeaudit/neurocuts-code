@@ -471,7 +471,8 @@ class Tree:
         #     region boundary for non-leaf: 16 bytes
         #     each child pointer: 4 bytes
         #     each rule: 16 bytes
-        result = {"bytes_per_rule": 0, "memory_access": 0}
+        result = {"bytes_per_rule": 0, "memory_access": 0, \
+            "num_leaf_node": 0, "num_nonleaf_node": 0, "num_node": 0}
         nodes = [self.root]
         while len(nodes) != 0:
             next_layer_nodes = []
@@ -481,8 +482,10 @@ class Tree:
                 # compute bytes per rule
                 if self.is_leaf(node):
                     result["bytes_per_rule"] += 2 + 16 * len(node.rules)
+                    result["leaf_node"] += 1
                 else:
                     result["bytes_per_rule"] += 2 + 16 + 4 * len(node.children)
+                    result["nonleaf_node"] += 1
 
                 # compute memory access
                 if self.is_leaf(node):
@@ -491,6 +494,7 @@ class Tree:
 
             nodes = next_layer_nodes
         result["bytes_per_rule"] = result["bytes_per_rule"] / len(self.rules)
+        result["num_node"] = result["num_leaf_node"] + result["num_nonleaf_node"]
         return result
 
     def print_layers(self, layer_num = 5):
