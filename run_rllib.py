@@ -130,15 +130,19 @@ if __name__ == "__main__":
                 return "partition_{}".format(MAX_AGENTS - 1)
             else:
                 return "partition_{}".format(agent_id[0])
-        return "default"
+        return "partition_0"
 
+    if args.partition == "top":
+        num_part_actions = 5
+    else:
+        num_part_actions = 0
     a_sp = Tuple(
-        [Discrete(5), Discrete(5 + 0)])
+        [Discrete(5), Discrete(5 + num_part_actions)])
     o_sp = Dict({
         "real_obs": Box(0, 1, (278,), dtype=np.float32),
         "action_mask": Box(
             0, 1,
-            (5 + 5 + 0,),
+            (5 + 5 + num_part_actions,),
             dtype=np.float32),
     })
     pol_graphs = {
