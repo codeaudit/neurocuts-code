@@ -133,7 +133,7 @@ if __name__ == "__main__":
         return "partition_0"
 
     if args.partition == "top":
-        num_part_actions = 5
+        num_part_actions = 6
     else:
         num_part_actions = 0
     a_sp = Tuple(
