@@ -23,6 +23,7 @@ parser.add_argument("--run", type=str, default="PPO")
 parser.add_argument("--gpu", action="store_true")
 parser.add_argument("--test", action="store_true")
 parser.add_argument("--env", type=str, default="acl1_100")
+parser.add_argument("--partition", type=str, default=None)
 parser.add_argument("--num-workers", type=int, default=0)
 parser.add_argument("--max-agents", type=int, default=1)
 parser.add_argument("--redis-address", type=str, default=None)
@@ -150,7 +151,7 @@ if __name__ == "__main__":
             "run": args.run,
             "env": "tree_env",
             "stop": {
-                "timesteps_total": 1000000,
+                "timesteps_total": 10000000,
             },
             "config": dict({
                 "num_gpus": 0.2 if args.gpu else 0,
@@ -168,7 +169,7 @@ if __name__ == "__main__":
                 },
                 "env_config": dict({
                     "q_learning": q_learning,
-                    "partition_mode": "efficuts", # grid_search([None, "top"]),
+                    "partition_mode": args.partition,
                     "max_depth": 500,
                     "max_actions": 1000 if args.test else 15000,
                     "cut_weight": 0, #grid_search([0, 0.0001, 0.005, 0.001, 0.005, 0.01]),
@@ -178,7 +179,7 @@ if __name__ == "__main__":
                         if args.test else
                         grid_search([
                             os.path.abspath(x) for x in
-                            glob.glob("classbench/*_1000")
+                            glob.glob("classbench/*_100000")
                         ]),
 #                        grid_search([
 #                            os.path.abspath("classbench/acl4_seed_1000"),
