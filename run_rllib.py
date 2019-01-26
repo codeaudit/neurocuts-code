@@ -115,7 +115,7 @@ if __name__ == "__main__":
                 "custom_model": "mask",
                 "fcnet_hiddens": [512, 512],
             },
-            "vf_share_layers": False,
+            "vf_share_layers": True,
             "entropy_coeff": 0.01,
             "sgd_minibatch_size": 100 if args.test else 1000,
             "sample_batch_size": 200 if args.test else 5000,
