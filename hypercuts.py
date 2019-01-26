@@ -12,6 +12,43 @@ class HyperCuts(object):
         # set up
         self.rules = rules
 
+    # HiCuts heuristic to cut a dimeision
+    def select_action_hicuts(self, tree, node):
+        # select a dimension
+        cut_dimension = 0
+        max_distinct_components_count = -1
+        for i in range(5):
+            distinct_components = set()
+            for rule in node.rules:
+                left = max(rule.ranges[i*2], node.ranges[i*2])
+                right = min(rule.ranges[i*2+1], node.ranges[i*2+1])
+                distinct_components.add((left, right))
+            if max_distinct_components_count < len(distinct_components):
+                max_distinct_components_count = len(distinct_components)
+                cut_dimension = i
+
+        # compute the number of cuts
+        range_left = node.ranges[cut_dimension*2]
+        range_right = node.ranges[cut_dimension*2+1]
+        #cut_num = min(
+        #    max(4, int(math.sqrt(len(node.rules)))),
+        #    range_right - range_left)
+        cut_num = min(2, range_right - range_left)
+        while True:
+            sm_C = cut_num
+            range_per_cut = math.ceil((range_right - range_left) / cut_num)
+            for rule in node.rules:
+                rule_range_left = max(rule.ranges[cut_dimension*2], range_left)
+                rule_range_right = min(rule.ranges[cut_dimension*2+1], range_right)
+                sm_C += (rule_range_right - range_left - 1) // range_per_cut - \
+                    (rule_range_left - range_left) // range_per_cut + 1
+            if sm_C < self.spfac * len(node.rules) and \
+                    cut_num * 2 <= range_right - range_left:
+                cut_num *= 2
+            else:
+                break
+        return (cut_dimension, cut_num)
+
     # HyperCuts heuristic to cut a node
     def select_action(self, tree, node):
         # select dimensions
@@ -96,8 +133,13 @@ class HyperCuts(object):
                 node = tree.get_next_node()
                 continue
 
+            # cut_num=0, then turn to hicuts
             cut_dimension, cut_num = self.select_action(tree, node)
-            tree.cut_current_node_multi_dimension(cut_dimension, cut_num)
+            if cut_num == 0:
+                cut_dimension, cut_num = self.select_action_hicuts(tree, node)
+                tree.cut_current_node(cut_dimension, cut_num)
+            else:
+                tree.cut_current_node_multi_dimension(cut_dimension, cut_num)
             node = tree.get_current_node()
             count += 1
             if count % 10000 == 0:
