@@ -35,7 +35,14 @@ class TreeEnv(MultiAgentEnv):
             partition_mode=None,
             leaf_value_fn=None,
             q_learning=False,
-            cut_weight=0.0):
+            reward_shape="linear",
+            depth_weight=1.0):
+
+        self.reward_shape = {
+            "linear": lambda x: x,
+            "sqrt": lambda x: np.sqrt(x),
+            "log": lambda x: np.log(x),
+        }[reward_shape]
 
         if leaf_value_fn == "hicuts":
             self.leaf_value_fn = lambda rules: HiCuts(rules).get_depth()
@@ -58,7 +65,7 @@ class TreeEnv(MultiAgentEnv):
         else:
             self.force_partition = False
 
-        self.cut_weight = cut_weight
+        self.depth_weight = depth_weight
         self.rules_file = rules_file
         self.rules = load_rules_from_file(rules_file)
         self.leaf_threshold = leaf_threshold
@@ -186,7 +193,7 @@ class TreeEnv(MultiAgentEnv):
                 action = [cut_dimension, cut_num]
             else:
                 if action[1] >= self.max_cuts_per_dimension:
-                    assert self.partition_enabled, action
+                    assert self.partition_enabled, (action, self.max_cuts_per_dimension)
                     partition = True
                     action[1] -= self.max_cuts_per_dimension
                 else:
@@ -238,7 +245,7 @@ class TreeEnv(MultiAgentEnv):
                 rew[self._agentof(self.tree.root)] = -1
             else:
                 zero_state = self._zeros()
-                rew = self.compute_rewards(self.cut_weight)
+                rew = self.compute_rewards(self.depth_weight)
                 rew_keys = [self._nodeof(a) for a in rew.keys()]
                 obs = {self._agentof(node_id): zero_state for node_id in rew_keys}
                 info = {self._agentof(node_id): {} for node_id in rew_keys}
@@ -299,9 +306,9 @@ class TreeEnv(MultiAgentEnv):
             min(2**(action[1] + 1), range_right - range_left))
         return (cut_dimension, cut_num)
 
-    def compute_rewards(self, cut_weight):
+    def compute_rewards(self, depth_weight):
         depth_to_go = collections.defaultdict(int)
-        cuts_to_go = collections.defaultdict(int)
+        nodes_to_go = collections.defaultdict(int)
         num_updates = 1
         while num_updates > 0:
             num_updates = 0
@@ -309,13 +316,13 @@ class TreeEnv(MultiAgentEnv):
                 if node_id not in depth_to_go:
                     if self.tree.is_leaf(node):
                         depth_to_go[node_id] = 0  # is leaf
-                        cuts_to_go[node_id] = 0
+                        nodes_to_go[node_id] = 0
                     elif node_id not in self.child_map:
                         depth_to_go[node_id] = 0  # no children
-                        cuts_to_go[node_id] = 0
+                        nodes_to_go[node_id] = 0
                     else:
                         depth_to_go[node_id] = self.leaf_value_fn(node.rules)
-                        cuts_to_go[node_id] = 0
+                        nodes_to_go[node_id] = 0
                 if node_id in self.child_map:
                     if self.node_map[node_id].is_partition():
                         max_child_depth = sum(
@@ -327,14 +334,14 @@ class TreeEnv(MultiAgentEnv):
                         depth_to_go[node_id] = max_child_depth
                         num_updates += 1
                     sum_child_cuts = len(self.child_map[node_id]) + sum(
-                        [cuts_to_go[c] for c in self.child_map[node_id]])
-                    if sum_child_cuts > cuts_to_go[node_id]:
-                        cuts_to_go[node_id] = sum_child_cuts
+                        [nodes_to_go[c] for c in self.child_map[node_id]])
+                    if sum_child_cuts > nodes_to_go[node_id]:
+                        nodes_to_go[node_id] = sum_child_cuts
                         num_updates += 1
         rew = {
             self._agentof(node_id):
-                - depth
-                - (cut_weight * cuts_to_go[node_id])
+                - depth_weight * self.reward_shape(depth)
+                - (1.0 - depth_weight) * self.reward_shape(float(nodes_to_go[node_id]))
             for (node_id, depth) in depth_to_go.items()
                 if node_id in self.child_map
         }

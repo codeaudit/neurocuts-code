@@ -26,6 +26,7 @@ parser.add_argument("--env", type=str, default="acl1_100")
 parser.add_argument("--partition", type=str, default=None)
 parser.add_argument("--num-workers", type=int, default=0)
 parser.add_argument("--max-agents", type=int, default=1)
+parser.add_argument("--depth-weight", type=float, default=1.0)
 parser.add_argument("--redis-address", type=str, default=None)
 
 
@@ -37,6 +38,7 @@ def on_episode_end(info):
         info = episode.last_info_for((0, 0))
     pid = info["rules_file"].split("/")[-1]
     out = os.path.abspath(os.path.expanduser("~/valid_trees-{}.txt".format(pid)))
+    out2 = os.path.abspath("valid_trees-{}.txt".format(pid))
     if info["nodes_remaining"] == 0:
         info["tree_depth_valid"] = info["tree_depth"]
         info["num_nodes_valid"] = info["num_nodes"]
@@ -44,6 +46,9 @@ def on_episode_end(info):
         info["bytes_per_rule_valid"] = info["bytes_per_rule"]
         info["memory_access_valid"] = info["memory_access"]
         with open(out, "a") as f:
+            f.write(json.dumps(info))
+            f.write("\n")
+        with open(out2, "a") as f:
             f.write(json.dumps(info))
             f.write("\n")
     else:
@@ -73,7 +78,8 @@ if __name__ == "__main__":
             leaf_value_fn=env_config["leaf_value_fn"],
             max_depth=env_config["max_depth"],
             max_actions_per_episode=env_config["max_actions"],
-            cut_weight=env_config["cut_weight"],
+            depth_weight=env_config["depth_weight"],
+            reward_shape=env_config["reward_shape"],
             partition_mode=env_config["partition_mode"]))
 
     extra_config = {}
@@ -151,11 +157,11 @@ if __name__ == "__main__":
     }
 
     run_experiments({
-        "neurocuts_nagents_{}".format(MAX_AGENTS): {
+        "neurocuts_{}".format(args.partition): {
             "run": args.run,
             "env": "tree_env",
             "stop": {
-                "timesteps_total": 10000000,
+#                "timesteps_total": 100000 if args.test else 5000000,
             },
             "config": dict({
                 "num_gpus": 0.2 if args.gpu else 0,
@@ -175,32 +181,20 @@ if __name__ == "__main__":
                     "q_learning": q_learning,
                     "partition_mode": args.partition,
                     "max_depth": 500,
-                    "max_actions": 1000 if args.test else 15000,
-                    "cut_weight": 0, #grid_search([0, 0.0001, 0.005, 0.001, 0.005, 0.01]),
+                    "max_actions": 15000,
+                    "reward_shape": "log",
+                    "depth_weight": grid_search([0.9, 0.5, 0.1, 0.0]),
                     "leaf_value_fn": None,
                     "rules":
                         os.path.abspath("classbench/acl1_seed_1000")
                         if args.test else
                         grid_search([
                             os.path.abspath(x) for x in
-                            glob.glob("classbench/*_100000")
+#                            ["classbench/fw1_seed_100000",
+#                             "classbench/fw4_seed_10000",
+#                             "classbench/fw4_seed_100000"]
+                            glob.glob("classbench/*_1*")
                         ]),
-#                        grid_search([
-#                            os.path.abspath("classbench/acl4_seed_1000"),
-#                            os.path.abspath("classbench/fw1_seed_10000"),
-#                            os.path.abspath("classbench/fw3_seed_10000"),
-#                            os.path.abspath("classbench/fw4_seed_1000"),
-#                            os.path.abspath("classbench/fw4_seed_10000"),
-#                            os.path.abspath("classbench/ipc1_seed_10000"),
-#                            os.path.abspath("classbench/acl2_seed_100000"),
-#                            os.path.abspath("classbench/acl3_seed_100000"),
-#                            os.path.abspath("classbench/acl4_seed_100000"),
-#                            os.path.abspath("classbench/fw1_seed_100000"),
-#                            os.path.abspath("classbench/fw3_seed_100000"),
-#                            os.path.abspath("classbench/fw4_seed_100000"),
-#                            os.path.abspath("classbench/fw5_seed_100000"),
-#                            os.path.abspath("classbench/ipc1_seed_100000"),
-#                        ]),
                 }, **extra_env_config),
             }, **extra_config),
         },
