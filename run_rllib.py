@@ -23,7 +23,7 @@ parser.add_argument("--run", type=str, default="PPO")
 parser.add_argument("--gpu", action="store_true")
 parser.add_argument("--test", action="store_true")
 parser.add_argument("--env", type=str, default="acl1_100")
-parser.add_argument("--partition", type=str, default=None)
+parser.add_argument("--partition", type=str, default="top")
 parser.add_argument("--num-workers", type=int, default=0)
 parser.add_argument("--max-agents", type=int, default=1)
 parser.add_argument("--depth-weight", type=float, default=1.0)
@@ -58,6 +58,8 @@ def on_episode_end(info):
         info["bytes_per_rule_valid"] = float("nan")
         info["memory_access_valid"] = float("nan")
     del info["rules_file"]
+    del info["tree_stats"]
+    del info["tree_stats_str"]
     episode.custom_metrics.update(info)
 
 
@@ -180,10 +182,10 @@ if __name__ == "__main__":
                 "env_config": dict({
                     "q_learning": q_learning,
                     "partition_mode": args.partition,
-                    "max_depth": 500,
-                    "max_actions": 15000,
+                    "max_depth": 100 if args.test else 500,
+                    "max_actions": 1000 if args.test else 15000,
                     "reward_shape": "log",
-                    "depth_weight": grid_search([0.9, 0.5, 0.1, 0.0]),
+                    "depth_weight": 0.5, #grid_search([0.9, 0.5, 0.1, 0.0]),
                     "leaf_value_fn": None,
                     "rules":
                         os.path.abspath("classbench/acl1_seed_1000")

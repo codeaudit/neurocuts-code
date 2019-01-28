@@ -34,7 +34,7 @@ def run_neurocuts():
     neuro_cuts = NeuroCuts(rules)
     neuro_cuts.train()
 
-EXPRS = ["100K"]
+EXPRS = ["seed_1000"]
 
 def run_hicuts():
     for i in EXPRS:
@@ -113,9 +113,9 @@ if __name__ == "__main__":
 #        run_all()
         #run_neurocuts()
         run_hicuts()
-        run_hypercuts()
-        run_efficuts()
-        run_cutsplit()
+#        run_hypercuts()
+#        run_efficuts()
+#        run_cutsplit()
     elif sys.argv[1] == "gen_result":
         gen_result(sys.argv[2])
     else:

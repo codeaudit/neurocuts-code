@@ -261,6 +261,8 @@ class TreeEnv(MultiAgentEnv):
                 "memory_access": result["memory_access"],
                 "exceeded_max_depth": len(self.exceeded_max_depth),
                 "tree_depth": self.tree.get_depth(),
+                "tree_stats": self.tree.get_stats(),
+                "tree_stats_str": self.tree.stats_str(),
                 "nodes_remaining": len(nodes_remaining),
                 "rules_remaining": len(rules_remaining),
                 "num_nodes": len(self.node_map),

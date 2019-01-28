@@ -129,7 +129,8 @@ class Node:
         elif self.action[0] == "cut":
             return False
         else:
-            assert False, (self.action, str(self))
+            return False
+#            assert False, (self.action, str(self))
 
     def is_useless(self):
         if not self.children:
@@ -572,7 +573,7 @@ class Tree:
         for node in nodes:
             nodes_copy.append(
                 Node(node.id, list(node.ranges),
-                    list(node.rules), node.depth, self.onehot_state, node.partitions))
+                    list(node.rules), node.depth, self.onehot_state, node.partitions, node.manual_partition))
             max_rule_count = max(max_rule_count, len(node.rules))
         while True:
             flag = True
@@ -631,6 +632,7 @@ class Tree:
 
         result["memory_access"] = self._compute_memory_access(self.root)
         result["bytes_per_rule"] = result["bytes_per_rule"] / len(self.rules)
+        self.print_stats()
         return result
 
     def _compute_memory_access(self, node):
@@ -641,6 +643,37 @@ class Tree:
             return sum(self._compute_memory_access(n) for n in node.children)
         else:
             return 1 + max(self._compute_memory_access(n) for n in node.children)
+
+    def get_stats(self):
+        widths = []
+        dim_stats = []
+        nodes = [self.root]
+        while len(nodes) != 0 and len(widths) < 30:
+            dim = [0] * 5
+            next_layer_nodes = []
+            for node in nodes:
+                next_layer_nodes.extend(node.children)
+                if node.action and node.action[0] == "cut":
+                    dim[node.action[1]] += 1
+            widths.append(len(nodes))
+            dim_stats.append(dim)
+            nodes = next_layer_nodes
+        return {
+            "widths": widths,
+            "dim_stats": dim_stats,
+        }
+
+    def stats_str(self):
+        stats = self.get_stats()
+        out = "widths" + "," + ",".join(map(str, stats["widths"]))
+        out += "\n"
+        for i in range(len(stats["dim_stats"][0])):
+            out += "dim{}".format(i) + "," + ",".join(str(d[i]) for d in stats["dim_stats"])
+            out += "\n"
+        return out
+
+    def print_stats(self):
+        print(self.stats_str())
 
     def print_layers(self, layer_num = 5):
         nodes = [self.root]
