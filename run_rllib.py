@@ -23,10 +23,11 @@ parser.add_argument("--run", type=str, default="PPO")
 parser.add_argument("--gpu", action="store_true")
 parser.add_argument("--test", action="store_true")
 parser.add_argument("--env", type=str, default="acl1_100")
-parser.add_argument("--partition", type=str, default="top")
+parser.add_argument("--partition", type=str, default=None)
 parser.add_argument("--num-workers", type=int, default=0)
 parser.add_argument("--max-agents", type=int, default=1)
 parser.add_argument("--depth-weight", type=float, default=1.0)
+parser.add_argument("--reward-shape", type=str, default="linear")
 parser.add_argument("--redis-address", type=str, default=None)
 
 
@@ -127,7 +128,7 @@ if __name__ == "__main__":
             "entropy_coeff": 0.01,
             "sgd_minibatch_size": 100 if args.test else 1000,
             "sample_batch_size": 200 if args.test else 5000,
-            "train_batch_size": 200 if args.test else 5000,
+            "train_batch_size": 200 if args.test else 15000,
         }
 
     MAX_AGENTS = int(args.max_agents)
@@ -183,19 +184,19 @@ if __name__ == "__main__":
                     "q_learning": q_learning,
                     "partition_mode": args.partition,
                     "max_depth": 100 if args.test else 500,
-                    "max_actions": 1000 if args.test else 15000,
-                    "reward_shape": "log",
-                    "depth_weight": 0.5, #grid_search([0.9, 0.5, 0.1, 0.0]),
+                    "max_actions": 5000 if args.test else 15000,
+                    "reward_shape": args.reward_shape,
+                    "depth_weight": args.depth_weight,
                     "leaf_value_fn": None,
                     "rules":
-                        os.path.abspath("classbench/acl1_seed_1000")
+                        os.path.abspath("classbench/fw5_seed_1000")
                         if args.test else
                         grid_search([
                             os.path.abspath(x) for x in
 #                            ["classbench/fw1_seed_100000",
 #                             "classbench/fw4_seed_10000",
 #                             "classbench/fw4_seed_100000"]
-                            glob.glob("classbench/*_1*")
+                            glob.glob("classbench/*_1000")
                         ]),
                 }, **extra_env_config),
             }, **extra_config),

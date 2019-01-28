@@ -6,6 +6,7 @@ import numpy as np
 import sys
 
 sys.setrecursionlimit(99999)
+SPLIT_CACHE = {}
 
 
 class Rule:
@@ -277,15 +278,21 @@ class Tree:
     def partition_cutsplit(self):
         assert self.current_node is self.root
         from cutsplit import CutSplit
-        self._split(self.root, CutSplit(self.rules))
+        self._split(self.root, CutSplit(self.rules), "cutsplit")
 
     def partition_efficuts(self):
         assert self.current_node is self.root
         from efficuts import EffiCuts
-        self._split(self.root, EffiCuts(self.rules))
+        self._split(self.root, EffiCuts(self.rules), "efficuts")
 
-    def _split(self, node, splitter):
-        parts = [p for p in splitter.separate_rules(self.rules) if len(p) > 0]
+    def _split(self, node, splitter, name):
+        key = (name, tuple(str(r) for r in self.rules))
+        if key not in SPLIT_CACHE:
+            print("Split not cached, recomputing")
+            SPLIT_CACHE[key] = [
+                p for p in splitter.separate_rules(self.rules) if len(p) > 0]
+        parts = SPLIT_CACHE[key]
+
         parts.sort(key=lambda x: -len(x))
         assert len(self.rules) == sum(len(s) for s in parts)
         print(splitter, [len(s) for s in parts])
