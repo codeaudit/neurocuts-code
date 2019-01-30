@@ -1,7 +1,8 @@
 import math
 import datetime
 
-from tree import *
+# from tree import *
+from tree_mem import *
 
 class HiCuts(object):
     def __init__(self, rules):
@@ -52,11 +53,22 @@ class HiCuts(object):
     def train(self):
         print(datetime.datetime.now(), "Algorithm HiCuts")
         tree = self.build_tree()
-        result = tree.compute_result()
-        print("%s Result %d %f" %
+
+        result = tree.result
+        result["bytes_per_rule"] = result["bytes_per_rule"]/len(tree.rules)
+        print("------mem_result-----")
+        print("%s Result %d %d %d" %
             (datetime.datetime.now(),
             result["memory_access"],
-            result["bytes_per_rule"]))
+            round(result["bytes_per_rule"]),
+            result["num_node"]))
+        # print("------traverse_result-----")
+        # result = tree.compute_result()
+        # print("%s Result %d %d %d" %
+        #     (datetime.datetime.now(),
+        #     result["memory_access"],
+        #     round(result["bytes_per_rule"]),
+        #     result["num_node"]))
 
     def build_tree(self):
         tree = Tree(self.rules, self.leaf_threshold,
@@ -67,12 +79,16 @@ class HiCuts(object):
             "equi_dense"        : False})
         node = tree.get_current_node()
         count = 0
+        print_count = 0
         while not tree.is_finish():
             if tree.is_leaf(node):
                 node = tree.get_next_node()
                 continue
 
             cut_dimension, cut_num = self.select_action(tree, node)
+            if cut_num <= 1 and print_count < 100:
+                print("hicuts cut_num <=1, node rules number:", len(node.rules))
+                print_count += 1
             tree.cut_current_node(cut_dimension, cut_num)
             node = tree.get_current_node()
             count += 1

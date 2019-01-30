@@ -1,18 +1,25 @@
 import sys, os, time, subprocess, random, datetime
 
-from neurocuts import *
+# from neurocuts import *
 from hicuts import *
 from hypercuts import *
 from efficuts import *
 from cutsplit import *
 
 seed_files = []
+acl_seed_files = []
+fw_seed_files = []
+ipc_seed_files = []
+
 for i in range(1, 6):
     seed_files.append("acl%d_seed" % i)
+    acl_seed_files.append("acl%d_seed" % i)
 for i in range(1, 6):
     seed_files.append("fw%d_seed" % i)
+    fw_seed_files.append("fw%d_seed" % i)
 for i in range(1, 3):
     seed_files.append("ipc%d_seed" % i)
+    ipc_seed_files.append("ipc%d_seed" % i)
 
 def exe_cmd(cmd):
     #print "\t", cmd
@@ -63,10 +70,120 @@ def run_cutsplit():
         cuts.train()
 
 def run_all():
+    # seed_files = ["ipc2_seed"]
+    j_list = [1000, 10000, 100000]
+    k_list = ["HyperCuts"]
     for i in seed_files:
-        for j in [1000, 10000, 100000]:
+        for j in j_list:
+        # for j in [1000, 10000, 100000]:
             print("%s Rules %s_%d" % (datetime.datetime.now(), i, j))
-            for k in ["HiCuts", "HyperCuts", "EffiCuts"]:#, "CutSplit"]:
+            for k in k_list:#, "CutSplit"]:
+                rules = load_rules_from_file("classbench/%s_%d" % (i, j))
+                cuts = None
+                if k == "HiCuts":
+                    cuts = HiCuts(rules)
+                elif k == "HyperCuts":
+                    cuts = HyperCuts(rules)
+                elif k == "EffiCuts":
+                    cuts = EffiCuts(rules)
+                elif k == "CutSplit":
+                    cuts = CutSplit(rules)
+                cuts.train()
+
+def run_all_hicuts(files_type):
+    # seed_files = ["ipc2_seed"]
+    if files_type == "acl":
+        i_list = acl_seed_files
+    elif files_type == "fw":
+        i_list = fw_seed_files
+    elif files_type == "ipc":
+        i_list = ipc_seed_files
+    else:
+        i_list = seed_files
+    i_list = ["acl3_seed"]
+    j_list = [100000]
+    k_list = ["HiCuts"]
+    for j in j_list:
+        for i in i_list:
+        # for j in [1000, 10000, 100000]:
+            print("%s Rules %s_%d" % (datetime.datetime.now(), i, j))
+            for k in k_list:#, "CutSplit"]:
+                rules = load_rules_from_file("classbench/%s_%d" % (i, j))
+                cuts = None
+                if k == "HiCuts":
+                    cuts = HiCuts(rules)
+                elif k == "HyperCuts":
+                    cuts = HyperCuts(rules)
+                elif k == "EffiCuts":
+                    cuts = EffiCuts(rules)
+                elif k == "CutSplit":
+                    cuts = CutSplit(rules)
+                cuts.train()
+
+def run_all_hypercuts(files_type):
+    # seed_files = ["ipc2_seed"]
+    if files_type == "acl":
+        i_list = acl_seed_files
+    elif files_type == "fw":
+        i_list = fw_seed_files
+    elif files_type == "ipc":
+        i_list = ipc_seed_files
+    elif files_type == "all":
+        i_list = seed_files
+    # i_list = [files_type]
+    # j_list = [1000, 10000, 100000]
+    j_list = [100000]
+    k_list = ["HyperCuts"]
+    for i in i_list:
+        for j in j_list:
+        # for j in [1000, 10000, 100000]:
+            print("%s Rules %s_%d" % (datetime.datetime.now(), i, j))
+            for k in k_list:#, "CutSplit"]:
+                rules = load_rules_from_file("classbench/%s_%d" % (i, j))
+                cuts = None
+                if k == "HiCuts":
+                    cuts = HiCuts(rules)
+                elif k == "HyperCuts":
+                    cuts = HyperCuts(rules)
+                elif k == "EffiCuts":
+                    cuts = EffiCuts(rules)
+                elif k == "CutSplit":
+                    cuts = CutSplit(rules)
+                cuts.train()
+
+def run_file(file_name, alg):
+    k = alg
+    rules = load_rules_from_file("classbench/%s" % (file_name))
+    cuts = None
+    if k == "HiCuts":
+        cuts = HiCuts(rules)
+    elif k == "HyperCuts":
+        cuts = HyperCuts(rules)
+    elif k == "EffiCuts":
+        cuts = EffiCuts(rules)
+    elif k == "CutSplit":
+        cuts = CutSplit(rules)
+    cuts.train()
+
+
+def run_all_efficuts(files_type):
+    # seed_files = ["ipc2_seed"]
+    if files_type == "acl":
+        i_list = acl_seed_files
+    elif files_type == "fw":
+        i_list = fw_seed_files
+    elif files_type == "ipc":
+        i_list = ipc_seed_files
+    else:
+        i_list = seed_files
+    j_list = [1000, 10000, 100000]
+    # j_list = [10000]
+    k_list = ["EffiCuts"]
+    for j in j_list:
+        for i in i_list:
+        # for j in [1000, 10000, 100000]:
+            print("%s Rules %s_%d" % (datetime.datetime.now(), i, j))
+            for k in k_list:#, "CutSplit"]:
                 rules = load_rules_from_file("classbench/%s_%d" % (i, j))
                 cuts = None
                 if k == "HiCuts":
@@ -107,10 +224,18 @@ if __name__ == "__main__":
         sync()
     elif sys.argv[1] == "gen_rules":
         gen_rules()
+    elif sys.argv[1] == "hicuts":
+        run_all_hicuts(sys.argv[2])
+    elif sys.argv[1] == "hypercuts":
+        run_all_hypercuts(sys.argv[2])
+    elif sys.argv[1] == "efficuts":
+        run_all_efficuts(sys.argv[2])
+    elif sys.argv[1] == "run_file":
+        run_file(sys.argv[2], sys.argv[3])
     elif sys.argv[1] == "expr":
         run_all()
         #run_neurocuts()
-        #run_hicuts()
+        # run_hicuts()
         #run_hypercuts()
         #run_efficuts()
         #run_cutsplit()

@@ -168,10 +168,13 @@ class Tree:
         self.root = self.create_node(0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1)
         if (self.refinements["region_compaction"]):
             self.refinement_region_compaction(self.root)
+
         self.current_node = self.root
         self.nodes_to_cut = [self.root]
         self.depth = 1
         self.node_count = 1
+        self.result = {"bytes_per_rule": 0, "memory_access": 0, \
+            "num_leaf_node": 0, "num_nonleaf_node": 0, "num_node": 0}
 
     def create_node(self, id, ranges, rules, depth):
         node = Node(id, ranges, rules, depth, self.onehot_state)
@@ -203,10 +206,13 @@ class Tree:
         if (self.refinements["region_compaction"]):
             for child in children:
                 self.refinement_region_compaction(child)
+        # if (self.refinements["rule_pushup"]):
+
 
         node.children.extend(children)
         children.reverse()
-        self.nodes_to_cut.pop()
+        pop_node = self.nodes_to_cut.pop()
+        self.compute_result_node(pop_node)
         self.nodes_to_cut.extend(children)
         self.current_node = self.nodes_to_cut[-1]
 
@@ -324,7 +330,8 @@ class Tree:
         return children
 
     def get_next_node(self):
-        self.nodes_to_cut.pop()
+        pop_node = self.nodes_to_cut.pop()
+        self.compute_result_node(pop_node)
         if len(self.nodes_to_cut) > 0:
             self.current_node = self.nodes_to_cut[-1]
         else:
@@ -415,6 +422,13 @@ class Tree:
             node.ranges[i*2+1] = min(new_ranges[i*2+1], node.ranges[i*2+1])
         # node.compute_state()
 
+    def refinement_rule_pushup_ongoing(self, node):
+
+        for j in range(1, len(node.children)):
+            node.pushup_rules = node.pushup_rules.intersection(node.children[j].pushup_rules)
+        for child in node.children:
+            child.pushup_rules = child.pushup_rules.difference(node.pushup_rules)
+
     def refinement_rule_pushup(self):
         nodes_by_layer = [None for i in range(self.depth)]
 
@@ -475,6 +489,22 @@ class Tree:
             nodes = nodes_copy
         return nodes
 
+    def compute_result_node(self, node):
+        if self.is_leaf(node):
+            self.result["bytes_per_rule"] += 2 + 16 * len(node.rules)
+            self.result["num_leaf_node"] += 1
+        else:
+            self.result["bytes_per_rule"] += 2 + 16 + 4 * len(node.children)
+            self.result["num_nonleaf_node"] += 1
+        self.result["num_node"] += 1
+        # compute memory access
+        if self.is_leaf(node):
+                self.result["memory_access"] = max(self.result["memory_access"],
+                    node.depth)
+        del node.rules
+        del node.children
+        del node
+
     def compute_result(self):
         if self.refinements["rule_pushup"]:
             self.refinement_rule_pushup()
@@ -493,6 +523,7 @@ class Tree:
         while len(nodes) != 0:
             next_layer_nodes = []
             for node in nodes:
+                # print(len(node.rules))
                 next_layer_nodes.extend(node.children)
 
                 # compute bytes per rule
@@ -502,7 +533,7 @@ class Tree:
                 else:
                     result["bytes_per_rule"] += 2 + 16 + 4 * len(node.children)
                     result["num_nonleaf_node"] += 1
-
+                result["num_node"] += 1
                 # compute memory access
                 if self.is_leaf(node):
                         result["memory_access"] = max(result["memory_access"],
@@ -510,7 +541,7 @@ class Tree:
 
             nodes = next_layer_nodes
         result["bytes_per_rule"] = result["bytes_per_rule"] / len(self.rules)
-        result["num_node"] = result["num_leaf_node"] + result["num_nonleaf_node"]
+        # result["num_node"] = result["num_leaf_node"] + result["num_nonleaf_node"]
         return result
 
     def print_layers(self, layer_num = 5):
