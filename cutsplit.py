@@ -32,7 +32,7 @@ class CutSplit(object):
 
         # separate rules based on src and dst ip ranges
         # subset 0: big src ip, big dst ip
-        # subset 1: small src ip, big dst ip
+        # subset 1: small src ip, big dst i
         # subset 2: big src ip, small dst ip
         # subset 3: small src ip, small dst ip
         rule_subsets = [[] for i in range(4)]
@@ -223,7 +223,7 @@ class CutSplit(object):
         rule_subsets = self.separate_rules(self.rules)
         print(datetime.datetime.now(), "Separate rules completed")
 
-        result = {"memory_access": 0, "bytes_per_rule": 0}
+        result = {"memory_access": 0, "bytes_per_rule": 0, "num_node": 0}
         for i, rule_subset in enumerate(rule_subsets):
             if len(rule_subset) == 0:
                 continue
@@ -233,9 +233,11 @@ class CutSplit(object):
             result_subset = self.build_tree(rule_subset, cut_algorithm, cut_dimension)
             result["memory_access"] += result_subset["memory_access"]
             result["bytes_per_rule"] += result_subset["bytes_per_rule"] * len(rule_subset)
+            result["num_node"] += result_subset["num_node"]
         result["bytes_per_rule"] /= len(self.rules)
 
-        print("%s Result %d %f" %
+        print("%s Result %d %f %d" %
             (datetime.datetime.now(),
             result["memory_access"],
-            result["bytes_per_rule"]))
+            result["bytes_per_rule"],
+            result["num_node"]))

@@ -3,12 +3,6 @@ import re
 
 # import numpy as np
 
-import sys
-
-sys.setrecursionlimit(99999)
-SPLIT_CACHE = {}
-
-
 class Rule:
     def __init__(self, priority, ranges):
         # each range is left inclusive and right exclusive, i.e., [left, right)
@@ -86,9 +80,6 @@ def load_rules_from_file(file_name):
 
 
 def to_bits(value, n):
-    if value >= 2**n:
-        print("WARNING: clamping value", value, "to", 2**n - 1)
-        value = 2**n - 1
     assert value == int(value)
     b = list(bin(int(value))[2:])
     assert len(b) <= n, (value, b, n)
@@ -102,105 +93,45 @@ def compare_region(ranges1, ranges2):
             break
     return flag
 
-def onehot_encode(arr, n):
-   out = []
-   for a in arr:
-       x = [0] * n
-       for i in range(a):
-           x[i] = 1
-       out.extend(x)
-   return out
-
-
 class Node:
-    def __init__(self, id, ranges, rules, depth, onehot_state, partitions,
-            manual_partition):
+    def __init__(self, id, ranges, rules, depth, onehot_state=False):
         self.id = id
-        self.partitions = list(partitions or [])
-        self.manual_partition = manual_partition
         self.ranges = ranges
         self.rules = rules
         self.depth = depth
         self.children = []
-        self.compute_state(onehot_state)
+        # self.compute_state(onehot_state)
         self.action = None
         self.pushup_rules = None
 
-    def is_partition(self):
-        """Returns if node was partitioned."""
-        if not self.action:
-            return False
-        elif self.action[0] == "partition":
-            return True
-        elif self.action[0] == "cut":
-            return False
-        else:
-            return False
-
-    def is_useless(self):
-        if not self.children:
-            return False
-        return max(len(c.rules) for c in self.children) == len(self.rules)
-
-    def compute_state(self, onehot=False):
-        if onehot:
-            self.state = []
-            self.state.extend(to_bits(self.ranges[0], 32))
-            self.state.extend(to_bits(self.ranges[1] - 1, 32))
-            self.state.extend(to_bits(self.ranges[2], 32))
-            self.state.extend(to_bits(self.ranges[3] - 1, 32))
-            assert len(self.state) == 128, len(self.state)
-            self.state.extend(to_bits(self.ranges[4], 16))
-            self.state.extend(to_bits(self.ranges[5] - 1, 16))
-            self.state.extend(to_bits(self.ranges[6], 16))
-            self.state.extend(to_bits(self.ranges[7] - 1, 16))
-            assert len(self.state) == 192, len(self.state)
-            self.state.extend(to_bits(self.ranges[8], 8))
-            self.state.extend(to_bits(self.ranges[9] - 1, 8))
-            assert len(self.state) == 208, len(self.state)
-        else:
-            self.state = []
-            for i in range(4):
-                for j in range(4):
-                    self.state.append(((int(self.ranges[i]) - i % 2)  >> (j * 8)) & 0xff)
-            for i in range(4):
-                for j in range(2):
-                    self.state.append(((int(self.ranges[i+4]) - i % 2) >> (j * 8)) & 0xff)
-            self.state.append(self.ranges[8])
-            self.state.append(self.ranges[9] - 1)
-            self.state = [i / 256 for i in self.state]
-
-        if self.manual_partition is None:
-            # 0, 6 -> 0-64%
-            # 6, 7 -> 64-100%
-            partition_state = [
-                0, 7,  # [>=min, <max) -- 0%, 2%, 4%, 8%, 16%, 32%, 64%, 100%
-                0, 7,
-                0, 7,
-                0, 7,
-                0, 7,
-            ]
-            for (smaller, part_dim, part_size) in self.partitions:
-                if smaller:
-                    partition_state[part_dim * 2 + 1] = min(
-                        partition_state[part_dim * 2 + 1], part_size + 1)
-                else:
-                    partition_state[part_dim * 2] = max(
-                        partition_state[part_dim * 2], part_size + 1)
-            if onehot:
-                self.state.extend(onehot_encode(partition_state, 7))
-            else:
-                self.state.extend(partition_state)
-        else:
-            if onehot:
-                partition_state = [0] * 70
-                partition_state[self.manual_partition] = 1
-                self.state.extend(partition_state)
-            else:
-                partition_state = [0] * 10
-                partition_state[0] = self.manual_partition
-                self.state.extend(partition_state)
-        self.state = np.array(self.state)
+    # def compute_state(self, onehot=False):
+    #     if onehot:
+    #         self.state = []
+    #         self.state.extend(to_bits(self.ranges[0], 32))
+    #         self.state.extend(to_bits(self.ranges[1] - 1, 32))
+    #         self.state.extend(to_bits(self.ranges[2], 32))
+    #         self.state.extend(to_bits(self.ranges[3] - 1, 32))
+    #         assert len(self.state) == 128, len(self.state)
+    #         self.state.extend(to_bits(self.ranges[4], 16))
+    #         self.state.extend(to_bits(self.ranges[5] - 1, 16))
+    #         self.state.extend(to_bits(self.ranges[6], 16))
+    #         self.state.extend(to_bits(self.ranges[7] - 1, 16))
+    #         assert len(self.state) == 192, len(self.state)
+    #         self.state.extend(to_bits(self.ranges[8], 8))
+    #         self.state.extend(to_bits(self.ranges[9] - 1, 8))
+    #         assert len(self.state) == 208, len(self.state)
+    #     else:
+    #         self.state = []
+    #         for i in range(4):
+    #             for j in range(4):
+    #                 self.state.append(((int(self.ranges[i]) - i % 2)  >> (j * 8)) & 0xff)
+    #         for i in range(4):
+    #             for j in range(2):
+    #                 self.state.append(((int(self.ranges[i+4]) - i % 2) >> (j * 8)) & 0xff)
+    #         self.state.append(self.ranges[8])
+    #         self.state.append(self.ranges[9] - 1)
+    #         self.state = [i / 256 for i in self.state]
+    #     self.state = np.array(self.state)
 
     def get_state(self):
         return self.state
@@ -234,16 +165,19 @@ class Tree:
         self.onehot_state = onehot_state
 
         self.rules = rules
-        self.root = self.create_node(0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1, None, None)
+        self.root = self.create_node(0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1)
         if (self.refinements["region_compaction"]):
             self.refinement_region_compaction(self.root)
+
         self.current_node = self.root
         self.nodes_to_cut = [self.root]
         self.depth = 1
         self.node_count = 1
+        self.result = {"bytes_per_rule": 0, "memory_access": 0, \
+            "num_leaf_node": 0, "num_nonleaf_node": 0, "num_node": 0}
 
-    def create_node(self, id, ranges, rules, depth, partitions, manual_partition):
-        node = Node(id, ranges, rules, depth, self.onehot_state, partitions, manual_partition)
+    def create_node(self, id, ranges, rules, depth):
+        node = Node(id, ranges, rules, depth, self.onehot_state)
 
         if self.refinements["rule_overlay"]:
             self.refinement_rule_overlay(node)
@@ -272,100 +206,27 @@ class Tree:
         if (self.refinements["region_compaction"]):
             for child in children:
                 self.refinement_region_compaction(child)
+        # if (self.refinements["rule_pushup"]):
+
 
         node.children.extend(children)
         children.reverse()
-        self.nodes_to_cut.pop()
+        pop_node = self.nodes_to_cut.pop()
+        self.compute_result_node(pop_node)
         self.nodes_to_cut.extend(children)
         self.current_node = self.nodes_to_cut[-1]
-
-    def partition_cutsplit(self):
-        assert self.current_node is self.root
-        from cutsplit import CutSplit
-        self._split(self.root, CutSplit(self.rules), "cutsplit")
-
-    def partition_efficuts(self):
-        assert self.current_node is self.root
-        from efficuts import EffiCuts
-        self._split(self.root, EffiCuts(self.rules), "efficuts")
-
-    def _split(self, node, splitter, name):
-        key = (name, tuple(str(r) for r in self.rules))
-        if key not in SPLIT_CACHE:
-            print("Split not cached, recomputing")
-            SPLIT_CACHE[key] = [
-                p for p in splitter.separate_rules(self.rules) if len(p) > 0]
-        parts = SPLIT_CACHE[key]
-
-        parts.sort(key=lambda x: -len(x))
-        assert len(self.rules) == sum(len(s) for s in parts)
-        print(splitter, [len(s) for s in parts])
-
-        children = []
-        for i, p in enumerate(parts):
-            c = self.create_node(
-                self.node_count, node.ranges, p, node.depth + 1, [], i)
-            self.node_count += 1
-            children.append(c)
-        node.action = ("partition", 0, 0)
-        self.update_tree(node, children)
-
-    def partition_current_node(self, part_dim, part_size):
-        return self.partition_node(self.current_node, part_dimension, part_size)
-
-    def partition_node(self, node, part_dim, part_size):
-        assert part_dim in [0, 1, 2, 3, 4], part_dim
-        assert part_size in [0, 1, 2, 3, 4, 5], part_size
-        self.depth = max(self.depth, node.depth + 1)
-        node.action = ("partition", part_dim, part_size)
-
-        def fits(rule, threshold):
-            span = rule.ranges[part_dim*2+1] - rule.ranges[part_dim*2]
-            assert span >= 0, rule
-            return span < threshold
-
-        small_rules = []
-        big_rules = []
-        max_size = [2**32, 2**32, 2**16, 2**16, 2**8][part_dim]
-        threshold = max_size * 0.02 * 2**part_size  # 2% ... 64%
-        for rule in node.rules:
-            if fits(rule, threshold):
-                small_rules.append(rule)
-            else:
-                big_rules.append(rule)
-
-#        print(
-#            "partition", part_dim, part_size,
-#            "threshold", max_size, threshold,
-#            "out", len(small_rules), len(big_rules))
-
-        left_part = list(node.partitions)
-        left_part.append((True, part_dim, part_size))
-        left = self.create_node(
-            self.node_count, node.ranges, small_rules, node.depth + 1, left_part, None)
-        self.node_count += 1
-        right_part = list(node.partitions)
-        right_part.append((False, part_dim, part_size))
-        right = self.create_node(
-            self.node_count, node.ranges, big_rules, node.depth + 1, right_part, None)
-        self.node_count += 1
-
-        children = [left, right]
-        self.update_tree(node, children)
-        return children
 
     def cut_current_node(self, cut_dimension, cut_num):
         return self.cut_node(self.current_node, cut_dimension, cut_num)
 
     def cut_node(self, node, cut_dimension, cut_num):
         self.depth = max(self.depth, node.depth + 1)
-        node.action = ("cut", cut_dimension, cut_num)
+        node.action = (cut_dimension, cut_num)
         range_left = node.ranges[cut_dimension*2]
         range_right = node.ranges[cut_dimension*2+1]
         range_per_cut = math.ceil((range_right - range_left) / cut_num)
 
         children = []
-        assert cut_num > 0, (cut_dimension, cut_num)
         for i in range(cut_num):
             child_ranges = list(node.ranges)
             child_ranges[cut_dimension*2] = range_left + i * range_per_cut
@@ -379,8 +240,7 @@ class Tree:
                     child_ranges[cut_dimension*2+1]):
                     child_rules.append(rule)
 
-            child = self.create_node(
-                self.node_count, child_ranges, child_rules, node.depth + 1, node.partitions, node.manual_partition)
+            child = self.create_node(self.node_count, child_ranges, child_rules, node.depth + 1)
             children.append(child)
             self.node_count += 1
 
@@ -419,8 +279,7 @@ class Tree:
                     child_rules.append(rule)
 
             # create new child
-            child = self.create_node(
-                self.node_count, child_ranges, child_rules, node.depth + 1, node.partitions, node.manual_partition)
+            child = self.create_node(self.node_count, child_ranges, child_rules, node.depth + 1)
             children.append(child)
             self.node_count += 1
 
@@ -463,8 +322,7 @@ class Tree:
                     child_ranges[cut_dimension*2+1]):
                     child_rules.append(rule)
 
-            child = self.create_node(
-                self.node_count, child_ranges, child_rules, node.depth + 1, node.partitions, node.manual_partition)
+            child = self.create_node(self.node_count, child_ranges, child_rules, node.depth + 1)
             children.append(child)
             self.node_count += 1
 
@@ -472,7 +330,8 @@ class Tree:
         return children
 
     def get_next_node(self):
-        self.nodes_to_cut.pop()
+        pop_node = self.nodes_to_cut.pop()
+        self.compute_result_node(pop_node)
         if len(self.nodes_to_cut) > 0:
             self.current_node = self.nodes_to_cut[-1]
         else:
@@ -531,7 +390,7 @@ class Tree:
         return nodes
 
     def refinement_rule_overlay(self, node):
-        if len(node.rules) == 0 or len(node.rules) > 500:
+        if len(node.rules) == 0 or len(node.rules) > 1000:
             return
 
         new_rules = []
@@ -563,6 +422,13 @@ class Tree:
             node.ranges[i*2+1] = min(new_ranges[i*2+1], node.ranges[i*2+1])
         # node.compute_state()
 
+    def refinement_rule_pushup_ongoing(self, node):
+
+        for j in range(1, len(node.children)):
+            node.pushup_rules = node.pushup_rules.intersection(node.children[j].pushup_rules)
+        for child in node.children:
+            child.pushup_rules = child.pushup_rules.difference(node.pushup_rules)
+
     def refinement_rule_pushup(self):
         nodes_by_layer = [None for i in range(self.depth)]
 
@@ -593,7 +459,7 @@ class Tree:
         for node in nodes:
             nodes_copy.append(
                 Node(node.id, list(node.ranges),
-                    list(node.rules), node.depth, self.onehot_state, node.partitions, node.manual_partition))
+                    list(node.rules), node.depth, self.onehot_state))
             max_rule_count = max(max_rule_count, len(node.rules))
         while True:
             flag = True
@@ -623,6 +489,22 @@ class Tree:
             nodes = nodes_copy
         return nodes
 
+    def compute_result_node(self, node):
+        if self.is_leaf(node):
+            self.result["bytes_per_rule"] += 2 + 16 * len(node.rules)
+            self.result["num_leaf_node"] += 1
+        else:
+            self.result["bytes_per_rule"] += 2 + 16 + 4 * len(node.children)
+            self.result["num_nonleaf_node"] += 1
+        self.result["num_node"] += 1
+        # compute memory access
+        if self.is_leaf(node):
+                self.result["memory_access"] = max(self.result["memory_access"],
+                    node.depth)
+        del node.rules
+        del node.children
+        del node
+
     def compute_result(self):
         if self.refinements["rule_pushup"]:
             self.refinement_rule_pushup()
@@ -641,6 +523,7 @@ class Tree:
         while len(nodes) != 0:
             next_layer_nodes = []
             for node in nodes:
+                # print(len(node.rules))
                 next_layer_nodes.extend(node.children)
 
                 # compute bytes per rule
@@ -650,54 +533,16 @@ class Tree:
                 else:
                     result["bytes_per_rule"] += 2 + 16 + 4 * len(node.children)
                     result["num_nonleaf_node"] += 1
+                result["num_node"] += 1
+                # compute memory access
+                if self.is_leaf(node):
+                        result["memory_access"] = max(result["memory_access"],
+                            node.depth)
 
             nodes = next_layer_nodes
-
-        result["memory_access"] = self._compute_memory_access(self.root)
         result["bytes_per_rule"] = result["bytes_per_rule"] / len(self.rules)
-        result["num_node"] = result["num_leaf_node"] + result["num_nonleaf_node"]
-        self.print_stats()
+        # result["num_node"] = result["num_leaf_node"] + result["num_nonleaf_node"]
         return result
-
-    def _compute_memory_access(self, node):
-        if self.is_leaf(node) or not node.children:
-            return 1
-
-        if node.is_partition():
-            return sum(self._compute_memory_access(n) for n in node.children)
-        else:
-            return 1 + max(self._compute_memory_access(n) for n in node.children)
-
-    def get_stats(self):
-        widths = []
-        dim_stats = []
-        nodes = [self.root]
-        while len(nodes) != 0 and len(widths) < 30:
-            dim = [0] * 5
-            next_layer_nodes = []
-            for node in nodes:
-                next_layer_nodes.extend(node.children)
-                if node.action and node.action[0] == "cut":
-                    dim[node.action[1]] += 1
-            widths.append(len(nodes))
-            dim_stats.append(dim)
-            nodes = next_layer_nodes
-        return {
-            "widths": widths,
-            "dim_stats": dim_stats,
-        }
-
-    def stats_str(self):
-        stats = self.get_stats()
-        out = "widths" + "," + ",".join(map(str, stats["widths"]))
-        out += "\n"
-        for i in range(len(stats["dim_stats"][0])):
-            out += "dim{}".format(i) + "," + ",".join(str(d[i]) for d in stats["dim_stats"])
-            out += "\n"
-        return out
-
-    def print_stats(self):
-        print(self.stats_str())
 
     def print_layers(self, layer_num = 5):
         nodes = [self.root]

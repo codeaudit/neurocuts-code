@@ -15,6 +15,44 @@ class EffiCuts(object):
         # set up
         self.rules = rules
 
+    # HiCuts heuristic to cut a dimeision
+    def select_action_hicuts(self, tree, node):
+        # select a dimension
+        cut_dimension = 0
+        max_distinct_components_count = -1
+        for i in range(5):
+            distinct_components = set()
+            for rule in node.rules:
+                left = max(rule.ranges[i*2], node.ranges[i*2])
+                right = min(rule.ranges[i*2+1], node.ranges[i*2+1])
+                distinct_components.add((left, right))
+            if max_distinct_components_count < len(distinct_components):
+                max_distinct_components_count = len(distinct_components)
+                cut_dimension = i
+
+        # compute the number of cuts
+        range_left = node.ranges[cut_dimension*2]
+        range_right = node.ranges[cut_dimension*2+1]
+        #cut_num = min(
+        #    max(4, int(math.sqrt(len(node.rules)))),
+        #    range_right - range_left)
+        cut_num = min(2, range_right - range_left)
+        while True:
+            sm_C = cut_num
+            range_per_cut = math.ceil((range_right - range_left) / cut_num)
+            for rule in node.rules:
+                rule_range_left = max(rule.ranges[cut_dimension*2], range_left)
+                rule_range_right = min(rule.ranges[cut_dimension*2+1], range_right)
+                sm_C += (rule_range_right - range_left - 1) // range_per_cut - \
+                    (rule_range_left - range_left) // range_per_cut + 1
+            if sm_C < self.spfac * len(node.rules) and \
+                    cut_num * 2 <= range_right - range_left:
+                cut_num *= 2
+            else:
+                break
+        return (cut_dimension, cut_num)
+
+
     # HyperCuts heuristic to cut a node
     def select_action(self, tree, node):
         # select dimensions
@@ -91,16 +129,23 @@ class EffiCuts(object):
             "rule_overlay"      : True,
             "region_compaction" : True,
             "rule_pushup"       : False,
-            "equi_dense"        : True})
+            "equi_dense"        : True,
+            "multi_dim_cut"     : False})
         node = tree.get_current_node()
         count = 0
         while not tree.is_finish():
             if tree.is_leaf(node):
                 node = tree.get_next_node()
                 continue
-
-            cut_dimension, cut_num = self.select_action(tree, node)
-            tree.cut_current_node_multi_dimension(cut_dimension, cut_num)
+            if tree.refinements["multi_dim_cut"]:
+                cut_dimension, cut_num = self.select_action(tree, node)
+                tree.cut_current_node_multi_dimension(cut_dimension, cut_num)
+            else:
+                cut_dimension, cut_num = self.select_action_hicuts(tree, node)
+                if cut_num <= 1 and print_count < 100:
+                    print("hicuts cut_num <=1, node rules number:", len(node.rules))
+                    print_count += 1
+                tree.cut_current_node(cut_dimension, cut_num)
             node = tree.get_current_node()
             count += 1
             if count % 10000 == 0:
@@ -180,14 +225,16 @@ class EffiCuts(object):
         print(datetime.datetime.now(), "Algorithm EffiCuts")
         rule_subsets = self.separate_rules(self.rules)
 
-        result = {"memory_access": 0, "bytes_per_rule": 0}
+        result = {"memory_access": 0, "bytes_per_rule": 0, "num_node": 0}
         for rule_subset in rule_subsets:
             result_subset = self.build_tree(rule_subset)
             result["memory_access"] += result_subset["memory_access"]
             result["bytes_per_rule"] += result_subset["bytes_per_rule"] * len(rule_subset)
+            result["num_node"] += result_subset["num_node"]
         result["bytes_per_rule"] /= len(self.rules)
 
-        print("%s Result %d %f" %
+        print("%s Result %d %d %d" %
             (datetime.datetime.now(),
             result["memory_access"],
-            result["bytes_per_rule"]))
+            round(result["bytes_per_rule"]),
+            result["num_node"]))
