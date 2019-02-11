@@ -1,6 +1,5 @@
 import sys, os, time, subprocess, random, datetime
 
-# from neurocuts import *
 from hicuts import *
 from hypercuts import *
 from efficuts import *
@@ -34,12 +33,6 @@ def gen_rules():
             cmd = "./db_generator/db_generator -bc parameter_files/%s " % i + \
                 "%d 2 0.5 -0.1 %s_%d" % (j, i, j)
             exe_cmd(cmd)
-
-def run_neurocuts():
-    random.seed(1)
-    rules = load_rules_from_file("classbench/acl1_100")
-    neuro_cuts = NeuroCuts(rules)
-    neuro_cuts.train()
 
 EXPRS = ["seed_1000"]
 

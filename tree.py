@@ -1,8 +1,6 @@
 import math
 import re
 
-# import numpy as np
-
 import sys
 
 sys.setrecursionlimit(99999)
@@ -42,6 +40,7 @@ class Rule:
             result += "%s:[%d, %d) " % (self.names[i],
                 self.ranges[i*2], self.ranges[i*2+1])
         return result
+
 
 def load_rules_from_file(file_name):
     rules = []
@@ -94,6 +93,7 @@ def to_bits(value, n):
     assert len(b) <= n, (value, b, n)
     return [0.0] * (n - len(b)) + [float(i) for i in b]
 
+
 def compare_region(ranges1, ranges2):
     flag = True
     for i in range(10):
@@ -101,6 +101,7 @@ def compare_region(ranges1, ranges2):
             flag = False
             break
     return flag
+
 
 def onehot_encode(arr, n):
    out = []
@@ -113,7 +114,7 @@ def onehot_encode(arr, n):
 
 
 class Node:
-    def __init__(self, id, ranges, rules, depth, onehot_state, partitions,
+    def __init__(self, id, ranges, rules, depth, partitions,
             manual_partition):
         self.id = id
         self.partitions = list(partitions or [])
@@ -122,7 +123,7 @@ class Node:
         self.rules = rules
         self.depth = depth
         self.children = []
-        self.compute_state(onehot_state)
+        self.state = self.compute_state()
         self.action = None
         self.pushup_rules = None
 
@@ -142,33 +143,21 @@ class Node:
             return False
         return max(len(c.rules) for c in self.children) == len(self.rules)
 
-    def compute_state(self, onehot=False):
-        if onehot:
-            self.state = []
-            self.state.extend(to_bits(self.ranges[0], 32))
-            self.state.extend(to_bits(self.ranges[1] - 1, 32))
-            self.state.extend(to_bits(self.ranges[2], 32))
-            self.state.extend(to_bits(self.ranges[3] - 1, 32))
-            assert len(self.state) == 128, len(self.state)
-            self.state.extend(to_bits(self.ranges[4], 16))
-            self.state.extend(to_bits(self.ranges[5] - 1, 16))
-            self.state.extend(to_bits(self.ranges[6], 16))
-            self.state.extend(to_bits(self.ranges[7] - 1, 16))
-            assert len(self.state) == 192, len(self.state)
-            self.state.extend(to_bits(self.ranges[8], 8))
-            self.state.extend(to_bits(self.ranges[9] - 1, 8))
-            assert len(self.state) == 208, len(self.state)
-        else:
-            self.state = []
-            for i in range(4):
-                for j in range(4):
-                    self.state.append(((int(self.ranges[i]) - i % 2)  >> (j * 8)) & 0xff)
-            for i in range(4):
-                for j in range(2):
-                    self.state.append(((int(self.ranges[i+4]) - i % 2) >> (j * 8)) & 0xff)
-            self.state.append(self.ranges[8])
-            self.state.append(self.ranges[9] - 1)
-            self.state = [i / 256 for i in self.state]
+    def compute_state(self):
+        state = []
+        state.extend(to_bits(self.ranges[0], 32))
+        state.extend(to_bits(self.ranges[1] - 1, 32))
+        state.extend(to_bits(self.ranges[2], 32))
+        state.extend(to_bits(self.ranges[3] - 1, 32))
+        assert len(state) == 128, len(state)
+        state.extend(to_bits(self.ranges[4], 16))
+        state.extend(to_bits(self.ranges[5] - 1, 16))
+        state.extend(to_bits(self.ranges[6], 16))
+        state.extend(to_bits(self.ranges[7] - 1, 16))
+        assert len(state) == 192, len(state)
+        state.extend(to_bits(self.ranges[8], 8))
+        state.extend(to_bits(self.ranges[9] - 1, 8))
+        assert len(state) == 208, len(state)
 
         if self.manual_partition is None:
             # 0, 6 -> 0-64%
@@ -187,20 +176,12 @@ class Node:
                 else:
                     partition_state[part_dim * 2] = max(
                         partition_state[part_dim * 2], part_size + 1)
-            if onehot:
-                self.state.extend(onehot_encode(partition_state, 7))
-            else:
-                self.state.extend(partition_state)
+            state.extend(onehot_encode(partition_state, 7))
         else:
-            if onehot:
-                partition_state = [0] * 70
-                partition_state[self.manual_partition] = 1
-                self.state.extend(partition_state)
-            else:
-                partition_state = [0] * 10
-                partition_state[0] = self.manual_partition
-                self.state.extend(partition_state)
-        self.state = np.array(self.state)
+            partition_state = [0] * 70
+            partition_state[self.manual_partition] = 1
+            state.extend(partition_state)
+        return np.array(state)
 
     def get_state(self):
         return self.state
@@ -217,7 +198,8 @@ class Node:
             result += "Pushup Rules:\n"
             for rule in self.pushup_rules:
                 result += str(rule) + "\n"
-        return  result
+        return result
+
 
 class Tree:
     def __init__(self, rules, leaf_threshold,
@@ -226,12 +208,10 @@ class Tree:
             "rule_overlay"      : False,
             "region_compaction" : False,
             "rule_pushup"       : False,
-            "equi_dense"        : False},
-        onehot_state = False):
+            "equi_dense"        : False}):
         # hyperparameters
         self.leaf_threshold = leaf_threshold
         self.refinements = refinements
-        self.onehot_state = onehot_state
 
         self.rules = rules
         self.root = self.create_node(0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1, None, None)
@@ -243,7 +223,7 @@ class Tree:
         self.node_count = 1
 
     def create_node(self, id, ranges, rules, depth, partitions, manual_partition):
-        node = Node(id, ranges, rules, depth, self.onehot_state, partitions, manual_partition)
+        node = Node(id, ranges, rules, depth, partitions, manual_partition)
 
         if self.refinements["rule_overlay"]:
             self.refinement_rule_overlay(node)
@@ -333,11 +313,6 @@ class Tree:
                 small_rules.append(rule)
             else:
                 big_rules.append(rule)
-
-#        print(
-#            "partition", part_dim, part_size,
-#            "threshold", max_size, threshold,
-#            "out", len(small_rules), len(big_rules))
 
         left_part = list(node.partitions)
         left_part.append((True, part_dim, part_size))
@@ -593,7 +568,7 @@ class Tree:
         for node in nodes:
             nodes_copy.append(
                 Node(node.id, list(node.ranges),
-                    list(node.rules), node.depth, self.onehot_state, node.partitions, node.manual_partition))
+                    list(node.rules), node.depth, node.partitions, node.manual_partition))
             max_rule_count = max(max_rule_count, len(node.rules))
         while True:
             flag = True

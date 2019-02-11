@@ -12,12 +12,9 @@ NUM_PART_LEVELS = 6  # 2%, 4%, 8%, 16%, 32%, 64%
 
 
 class TreeEnv(MultiAgentEnv):
-    """Two modes: q_learning and on-policy.
+    """NeuroCuts multiagent tree building environment.
 
-    If q_learning=True, each cut in the tree is recorded as -1 reward and a
-    transition is returned on each step.
-    
-    In on-policy mode, we aggregate rewards at the end of the episode and
+    In this env, we aggregate rewards at the end of the episode and
     assign each cut its reward based on the policy performance (actual depth).
 
     Both modes are modeled as a multi-agent environment. Each "cut" in the tree
@@ -33,30 +30,13 @@ class TreeEnv(MultiAgentEnv):
             max_actions_per_episode=5000,
             max_depth=100,
             partition_mode=None,
-            leaf_value_fn=None,
-            q_learning=False,
             reward_shape="linear",
             depth_weight=1.0):
 
         self.reward_shape = {
             "linear": lambda x: x,
-            "sqrt": lambda x: np.sqrt(x),
             "log": lambda x: np.log(x),
         }[reward_shape]
-
-        if leaf_value_fn == "hicuts":
-            self.leaf_value_fn = lambda rules: HiCuts(rules).get_depth()
-            assert not q_learning, "configuration not supported"
-        elif leaf_value_fn == "len":
-            self.leaf_value_fn = lambda rules: len(rules)
-            assert not q_learning, "configuration not supported"
-        elif leaf_value_fn == "constant":
-            self.leaf_value_fn = lambda rules: 10
-            assert not q_learning, "configuration not supported"
-        elif leaf_value_fn is None:
-            self.leaf_value_fn = lambda rules: 0
-        else:
-            raise ValueError("Unknown value fn: {}".format(leaf_value_fn))
 
         assert partition_mode in [None, "top", "efficuts", "cutsplit"]
         self.partition_enabled = partition_mode == "top"
@@ -75,32 +55,21 @@ class TreeEnv(MultiAgentEnv):
         self.tree = None
         self.node_map = None
         self.child_map = None
-        self.q_learning = q_learning
         self.max_cuts_per_dimension = max_cuts_per_dimension
         if self.partition_enabled:
             self.num_part_levels = NUM_PART_LEVELS
         else:
             self.num_part_levels = 0
-        if q_learning:
-            if self.partition_enabled:
-                raise ValueError("partition not supported for Q learning")
-            num_actions = 5 * max_cuts_per_dimension
-            self.max_children = 2**max_cuts_per_dimension
-            self.action_space = Discrete(num_actions)
-            self.observation_space = Tuple([
-                Box(1, self.max_children, (), dtype=np.float32),  # nchild
-                Box(0, 1, (), dtype=np.float32),  # is finished
-                Box(0, 1, (self.max_children, 278), dtype=np.float32)])
-        else:
-            self.action_space = Tuple(
-                [Discrete(5), Discrete(max_cuts_per_dimension + self.num_part_levels)])
-            self.observation_space = Dict({
-                "real_obs": Box(0, 1, (278,), dtype=np.float32),
-                "action_mask": Box(
-                    0, 1,
-                    (5 + max_cuts_per_dimension + self.num_part_levels,),
-                    dtype=np.float32),
-            })
+        self.action_space = Tuple(
+            [Discrete(5),
+             Discrete(max_cuts_per_dimension + self.num_part_levels)])
+        self.observation_space = Dict({
+            "real_obs": Box(0, 1, (278,), dtype=np.float32),
+            "action_mask": Box(
+                0, 1,
+                (5 + max_cuts_per_dimension + self.num_part_levels,),
+                dtype=np.float32),
+        })
 
     def reset(self):
         self.num_actions = 0
@@ -112,7 +81,7 @@ class TreeEnv(MultiAgentEnv):
                 "region_compaction" : False,
                 "rule_pushup"       : False,
                 "equi_dense"        : False,
-            }, onehot_state=True)
+            })
         self.node_map = {
             self.tree.root.id: self.tree.root,
         }
@@ -127,62 +96,19 @@ class TreeEnv(MultiAgentEnv):
                 assert False, self.force_partition
             for c in self.tree.root.children:
                 self.node_map[c.id] = c
-            self.child_map[self.tree.root.id] = [c.id for c in self.tree.root.children]
+            self.child_map[self.tree.root.id] = [
+                c.id for c in self.tree.root.children]
 
         start = self.tree.current_node
         return {
-            self._agentof(start): self._encode_state(start)
+            start.id: self._encode_state(start)
         }
-
-    def _zeros(self):
-        zeros = [0] * 278
-        if self.q_learning:
-            return zeros
-        return {
-            "real_obs": zeros,
-            "action_mask": [1] * (5 + self.max_cuts_per_dimension + self.num_part_levels),
-        }
-
-    def _encode_state(self, node):
-        if self.q_learning:
-            state = [self._zeros() for _ in range(self.max_children)]
-            state[0] = node.get_state()
-            obs = [1, 0, state]
-            return obs
-        else:
-            if node.depth > 1:
-                action_mask = (
-                    [1] * (5 + self.max_cuts_per_dimension) +
-                    [0] * self.num_part_levels)
-            else:
-                assert node.depth == 1, node.depth
-                action_mask = (
-                    [1] * (5 + self.max_cuts_per_dimension) +
-                    [1] * self.num_part_levels)
-            return {
-                "real_obs": node.get_state(),
-                "action_mask": action_mask,
-            }
-
-    def _encode_child_state(self, node):
-        assert self.q_learning
-        children = self.child_map[node.id]
-        assert len(children) <= self.max_children, children
-        state = [self._zeros() for _ in range(self.max_children)]
-        finished = 1
-        for i, c in enumerate(children):
-            child = self.node_map[c]
-            state[i] = child.get_state()
-            if not self.tree.is_leaf(child):
-                finished = 0
-        return [max(1, len(children)), finished, state]
 
     def step(self, action_dict):
         assert len(action_dict) == 1  # one at a time processing
 
         new_children = []
-        for agent_id, action in action_dict.items():
-            node_id = self._nodeof(agent_id)
+        for node_id, action in action_dict.items():
             node = self.node_map[node_id]
             orig_action = action
             if np.isscalar(action):
@@ -222,41 +148,21 @@ class TreeEnv(MultiAgentEnv):
                 self.exceeded_max_depth.append(node)
         nodes_remaining = self.tree.nodes_to_cut + self.exceeded_max_depth
 
-        if self.q_learning:
-            obs, rew, done, info = {}, {}, {}, {}
-            for agent_id, action in action_dict.items():
-                node_id = self._nodeof(agent_id)
-                if node_id == 0:
-                    continue
-                agent_id = self._agentof(self.node_map[node_id])
-                obs[agent_id] = self._encode_child_state(self.node_map[node_id])
-                rew[agent_id] = -1
-                done[agent_id] = True
-                info[agent_id] = {}
-        else:
-            obs, rew, done, info = {}, {}, {}, {}
+        obs, rew, done, info = {}, {}, {}, {}
 
         if (not nodes_remaining or
                 self.num_actions > self.max_actions_per_episode or
                 self.tree.get_current_node() is None):
-            if self.q_learning:
-                # terminate the root agent last always to preserve the stats
-                obs[self._agentof(self.tree.root)] = self._encode_child_state(self.tree.root)
-                rew[self._agentof(self.tree.root)] = -1
-            else:
-                zero_state = self._zeros()
-                rew = self.compute_rewards(self.depth_weight)
-                rew_keys = [self._nodeof(a) for a in rew.keys()]
-                obs = {self._agentof(node_id): zero_state for node_id in rew_keys}
-                info = {self._agentof(node_id): {} for node_id in rew_keys}
+            zero_state = self._zeros()
+            rew = self.compute_rewards(self.depth_weight)
+            obs = {node_id: zero_state for node_id in rew.keys()}
+            info = {node_id: {} for node_id in rew.keys()}
             result = self.tree.compute_result()
             rules_remaining = set()
-            largest_node_remaining = 0
             for n in nodes_remaining:
                 for r in n.rules:
                     rules_remaining.add(str(r))
-                largest_node_remaining = max(largest_node_remaining, len(n.rules))
-            info[self._agentof(self.tree.root)] = {
+            info[self.tree.root.id] = {
                 "bytes_per_rule": result["bytes_per_rule"],
                 "memory_access": result["memory_access"],
                 "exceeded_max_depth": len(self.exceeded_max_depth),
@@ -267,37 +173,22 @@ class TreeEnv(MultiAgentEnv):
                 "rules_remaining": len(rules_remaining),
                 "num_nodes": len(self.node_map),
                 "useless_fraction": float(len(
-                    [n for n in self.node_map.values() if n.is_useless()])) / len(self.node_map),
+                    [n for n in self.node_map.values() if n.is_useless()])) /
+                    len(self.node_map),
                 "partition_fraction": float(len(
-                    [n for n in self.node_map.values() if n.is_partition()])) / len(self.node_map),
+                    [n for n in self.node_map.values() if n.is_partition()])) /
+                    len(self.node_map),
                 "num_splits": self.num_actions,
                 "rules_file": self.rules_file,
             }
             return obs, rew, {"__all__": True}, info
-        else:
-            needs_split = [self.tree.get_current_node()]
-            obs.update({self._agentof(s): self._encode_state(s) for s in needs_split})
-            rew.update({self._agentof(s): 0 for s in needs_split})
-            done.update({"__all__": False})
-            info.update({self._agentof(s): {} for s in needs_split})
-            return obs, rew, done, info
 
-    def _agentof(self, node):
-        if isinstance(node, int):
-            node = self.node_map[node]
-        if self.force_partition:
-            if node.id == 0:
-                return (0, node.id)
-            else:
-                return (node.manual_partition, node.id)
-        else:
-            return node.id
-
-    def _nodeof(self, agent_id):
-        if self.force_partition:
-            return agent_id[1]
-        else:
-            return agent_id
+        needs_split = [self.tree.get_current_node()]
+        obs.update({s.id: self._encode_state(s) for s in needs_split})
+        rew.update({s.id: 0 for s in needs_split})
+        done.update({"__all__": False})
+        info.update({s.id: {} for s in needs_split})
+        return obs, rew, done, info
 
     def action_tuple_to_cut(self, node, action):
         cut_dimension = action[0]
@@ -316,15 +207,8 @@ class TreeEnv(MultiAgentEnv):
             num_updates = 0
             for node_id, node in self.node_map.items():
                 if node_id not in depth_to_go:
-                    if self.tree.is_leaf(node):
-                        depth_to_go[node_id] = 0  # is leaf
-                        nodes_to_go[node_id] = 0
-                    elif node_id not in self.child_map:
-                        depth_to_go[node_id] = 0  # no children
-                        nodes_to_go[node_id] = 0
-                    else:
-                        depth_to_go[node_id] = self.leaf_value_fn(node.rules)
-                        nodes_to_go[node_id] = 0
+                    depth_to_go[node_id] = 0
+                    nodes_to_go[node_id] = 0
                 if node_id in self.child_map:
                     if self.node_map[node_id].is_partition():
                         max_child_depth = sum(
@@ -341,10 +225,34 @@ class TreeEnv(MultiAgentEnv):
                         nodes_to_go[node_id] = sum_child_cuts
                         num_updates += 1
         rew = {
-            self._agentof(node_id):
+            node_id:
                 - depth_weight * self.reward_shape(depth)
-                - (1.0 - depth_weight) * self.reward_shape(float(nodes_to_go[node_id]))
+                - (1.0 - depth_weight) * self.reward_shape(
+                    float(nodes_to_go[node_id]))
             for (node_id, depth) in depth_to_go.items()
                 if node_id in self.child_map
         }
         return rew
+
+    def _zeros(self):
+        zeros = [0] * 278
+        return {
+            "real_obs": zeros,
+            "action_mask": [1] * (
+                5 + self.max_cuts_per_dimension + self.num_part_levels),
+        }
+
+    def _encode_state(self, node):
+        if node.depth > 1:
+            action_mask = (
+                [1] * (5 + self.max_cuts_per_dimension) +
+                [0] * self.num_part_levels)
+        else:
+            assert node.depth == 1, node.depth
+            action_mask = (
+                [1] * (5 + self.max_cuts_per_dimension) +
+                [1] * self.num_part_levels)
+        return {
+            "real_obs": node.get_state(),
+            "action_mask": action_mask,
+        }
