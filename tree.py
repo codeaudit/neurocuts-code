@@ -1,6 +1,6 @@
 import math
+import numpy as np
 import re
-
 import sys
 
 sys.setrecursionlimit(99999)
@@ -499,7 +499,6 @@ class Tree:
         for node in nodes:
             if (set(node.rules)==set(parent.rules)) and \
                 compare_region(node.ranges, parent.ranges):
-                print("merged node the same as parent, rules_num:", len(node.rules))
                 # break
                 return nodes_bu
 

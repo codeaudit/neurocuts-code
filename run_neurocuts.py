@@ -18,21 +18,45 @@ from mask import PartitionMaskModel
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--gpu", action="store_true")
+
 parser.add_argument("--rules",
     type=lambda expr: [
         os.path.abspath("classbench/{}".format(r)) for r in expr.split(",")],
-    default="ac4_1k")
-parser.add_argument("--fast", action="store_true")
-parser.add_argument("--partition-mode", type=str, default=None)
-parser.add_argument("--reward-shape", type=str, default="linear")
-parser.add_argument("--num-workers", type=int, default=0)
-parser.add_argument("--depth-weight", type=float, default=1.0)
-parser.add_argument("--redis-address", type=str, default=None)
+    default="acl4_seed_1000",
+    help="Rules file name or list of rules files separated by comma.")
+
+parser.add_argument(
+    "--fast", action="store_true",
+    help="Use fast hyperparam configuration for testing in development.")
+
+parser.add_argument(
+    "--partition-mode", type=str, default=None,
+    help="Set the partitioner: [None, 'top', 'efficuts', 'cutsplit'].")
+
+parser.add_argument(
+    "--reward-shape", type=str, default="linear",
+    help="Function to use for combining depth and size weights.")
+
+parser.add_argument(
+    "--depth-weight", type=float, default=1.0,
+    help="Weight to use for combining depth and size, in [0, 1]")
+
+parser.add_argument(
+    "--num-workers", type=int, default=0,
+    help="Number of parallel workers to request from RLlib.")
+
+parser.add_argument(
+    "--gpu", action="store_true",
+    help="Whether to tell RLlib to use a GPU.")
+
+parser.add_argument(
+    "--redis-address", type=str, default=None,
+    help="Address of existing Ray cluster to connect to.")
 
 
 def on_episode_end(info):
-    """Report tree custom metrics"""
+    """Report tree custom metrics."""
+
     episode = info["episode"]
     info = episode.last_info_for(0)
     if not info:
@@ -87,7 +111,7 @@ if __name__ == "__main__":
                 "num_workers": args.num_workers,
                 "sgd_minibatch_size": 100 if args.fast else 1000,
                 "sample_batch_size": 200 if args.fast else 5000,
-                "train_batch_size": 200 if args.fast else 15000,
+                "train_batch_size": 1000 if args.fast else 15000,
                 "batch_mode": "complete_episodes",
                 "observation_filter": "NoFilter",
                 "model": {
@@ -99,15 +123,11 @@ if __name__ == "__main__":
                 "callbacks": {
                     "on_episode_end": tune.function(on_episode_end),
                 },
-                "multiagent": {
-                    "policy_mapping_fn": tune.function(policy_mapper),
-                    "policy_graphs": pol_graphs,
-                },
                 "env_config": {
                     "partition_mode": args.partition_mode,
                     "reward_shape": args.reward_shape,
                     "max_depth": 100 if args.fast else 500,
-                    "max_actions": 5000 if args.fast else 15000,
+                    "max_actions": 1000 if args.fast else 15000,
                     "depth_weight": args.depth_weight,
                     "rules": grid_search(args.rules),
                 },
