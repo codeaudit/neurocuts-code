@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import sys, os, time, subprocess, random, datetime
 
 from hicuts import *

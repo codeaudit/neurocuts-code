@@ -1,5 +1,6 @@
 import collections
 import numpy as np
+import pickle
 from gym.spaces import Tuple, Box, Discrete, Dict
 
 from ray.rllib.env import MultiAgentEnv
@@ -181,6 +182,8 @@ class TreeEnv(MultiAgentEnv):
                 "num_splits": self.num_actions,
                 "rules_file": self.rules_file,
             }
+            with open("tree.pkl", "wb") as f:
+                pickle.dump(self.tree, f)
             return obs, rew, {"__all__": True}, info
 
         needs_split = [self.tree.get_current_node()]

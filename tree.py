@@ -1,4 +1,5 @@
 import math
+import random
 import numpy as np
 import re
 import sys
@@ -24,6 +25,30 @@ class Rule:
                     ranges[i*2+1] <= self.ranges[i*2]:
                 return False
         return True
+
+    def sample_packet(self):
+        src_ip = random.randint(self.ranges[0], self.ranges[1] - 1)
+        dst_ip = random.randint(self.ranges[2], self.ranges[3] - 1)
+        src_port = random.randint(self.ranges[4], self.ranges[5] - 1)
+        dst_port = random.randint(self.ranges[6], self.ranges[7] - 1)
+        protocol = random.randint(self.ranges[8], self.ranges[9] - 1)
+        packet = (src_ip, dst_ip, src_port, dst_port, protocol)
+        assert self.matches(packet), packet
+        return packet
+
+    def matches(self, packet):
+        assert len(packet) == 5, packet
+        return self.is_intersect_multi_dimension([
+            packet[0] + 0,  # src ip
+            packet[0] + 1,
+            packet[1] + 0,  # dst ip
+            packet[1] + 1,
+            packet[2] + 0,  # src port
+            packet[2] + 1,
+            packet[3] + 0,  # dst port
+            packet[3] + 1,
+            packet[4] + 0,  # protocol
+            packet[4] + 1])
 
     def is_covered_by(self, other, ranges):
         for i in range(5):
@@ -129,10 +154,64 @@ class Node:
         else:
             return False
 
+    def match(self, packet):
+        if self.is_partition():
+            for c in self.children:
+                match = c.match(packet)
+                if match:
+                    return match
+            return None
+        elif self.children:
+            for n in self.children:
+                if n.contains(packet):
+                    return n.match(packet)
+            return None
+        else:
+            for r in self.rules:
+                if r.matches(packet):
+                    return r
+
+    def is_intersect_multi_dimension(self, ranges):
+        for i in range(5):
+            if ranges[i*2] >= self.ranges[i*2+1] or \
+                    ranges[i*2+1] <= self.ranges[i*2]:
+                return False
+        return True
+
+    def contains(self, packet):
+        assert len(packet) == 5, packet
+        return self.is_intersect_multi_dimension([
+            packet[0] + 0,  # src ip
+            packet[0] + 1,
+            packet[1] + 0,  # dst ip
+            packet[1] + 1,
+            packet[2] + 0,  # src port
+            packet[2] + 1,
+            packet[3] + 0,  # dst port
+            packet[3] + 1,
+            packet[4] + 0,  # protocol
+            packet[4] + 1])
+
     def is_useless(self):
         if not self.children:
             return False
         return max(len(c.rules) for c in self.children) == len(self.rules)
+
+    def pruned_rules(self):
+        new_rules = []
+        for i in range(len(self.rules) - 1):
+            rule = self.rules[len(self.rules) -  1 - i]
+            flag = False
+            for j in range(0, len(self.rules) -  1 - i):
+                high_priority_rule = self.rules[j]
+                if rule.is_covered_by(high_priority_rule, self.ranges):
+                    flag = True
+                    break
+            if not flag:
+                new_rules.append(rule)
+        new_rules.append(self.rules[0])
+        new_rules.reverse()
+        return new_rules
 
     def compute_state(self):
         state = []
@@ -220,6 +299,9 @@ class Tree:
             self.refinement_rule_overlay(node)
 
         return node
+
+    def match(self, packet):
+        return self.root.match(packet)
 
     def get_depth(self):
         return self.depth
@@ -490,21 +572,7 @@ class Tree:
     def refinement_rule_overlay(self, node):
         if len(node.rules) == 0 or len(node.rules) > 500:
             return
-
-        new_rules = []
-        for i in range(len(node.rules) - 1):
-            rule = node.rules[len(node.rules) -  1 - i]
-            flag = False
-            for j in range(0, len(node.rules) -  1 - i):
-                high_priority_rule = node.rules[j]
-                if rule.is_covered_by(high_priority_rule, node.ranges):
-                    flag = True
-                    break
-            if not flag:
-                new_rules.append(rule)
-        new_rules.append(node.rules[0])
-        new_rules.reverse()
-        node.rules = new_rules
+        node.rules = node.pruned_rules()
 
     def refinement_region_compaction(self, node):
         if len(node.rules) == 0:
@@ -613,7 +681,6 @@ class Tree:
         result["memory_access"] = self._compute_memory_access(self.root)
         result["bytes_per_rule"] = result["bytes_per_rule"] / len(self.rules)
         result["num_node"] = result["num_leaf_node"] + result["num_nonleaf_node"]
-        self.print_stats()
         return result
 
     def _compute_memory_access(self, node):
