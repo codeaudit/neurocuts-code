@@ -3,14 +3,15 @@ import datetime
 
 from tree import *
 
+
 class EffiCuts(object):
     def __init__(self, rules):
         # hyperparameters
-        self.leaf_threshold = 16    # number of rules in a leaf
-        self.spfac = 4              # space estimation
+        self.leaf_threshold = 16  # number of rules in a leaf
+        self.spfac = 4  # space estimation
 
-        self.largeness_fraction = 0.5       # decide if a large field
-        self.largeness_fraction_ip = 0.05   # decide if a large field for IP
+        self.largeness_fraction = 0.5  # decide if a large field
+        self.largeness_fraction_ip = 0.05  # decide if a large field for IP
 
         # set up
         self.rules = rules
@@ -23,16 +24,16 @@ class EffiCuts(object):
         for i in range(5):
             distinct_components = set()
             for rule in node.rules:
-                left = max(rule.ranges[i*2], node.ranges[i*2])
-                right = min(rule.ranges[i*2+1], node.ranges[i*2+1])
+                left = max(rule.ranges[i * 2], node.ranges[i * 2])
+                right = min(rule.ranges[i * 2 + 1], node.ranges[i * 2 + 1])
                 distinct_components.add((left, right))
             if max_distinct_components_count < len(distinct_components):
                 max_distinct_components_count = len(distinct_components)
                 cut_dimension = i
 
         # compute the number of cuts
-        range_left = node.ranges[cut_dimension*2]
-        range_right = node.ranges[cut_dimension*2+1]
+        range_left = node.ranges[cut_dimension * 2]
+        range_right = node.ranges[cut_dimension * 2 + 1]
         #cut_num = min(
         #    max(4, int(math.sqrt(len(node.rules)))),
         #    range_right - range_left)
@@ -41,8 +42,10 @@ class EffiCuts(object):
             sm_C = cut_num
             range_per_cut = math.ceil((range_right - range_left) / cut_num)
             for rule in node.rules:
-                rule_range_left = max(rule.ranges[cut_dimension*2], range_left)
-                rule_range_right = min(rule.ranges[cut_dimension*2+1], range_right)
+                rule_range_left = max(rule.ranges[cut_dimension * 2],
+                                      range_left)
+                rule_range_right = min(rule.ranges[cut_dimension * 2 + 1],
+                                       range_right)
                 sm_C += (rule_range_right - range_left - 1) // range_per_cut - \
                     (rule_range_left - range_left) // range_per_cut + 1
             if sm_C < self.spfac * len(node.rules) and \
@@ -52,7 +55,6 @@ class EffiCuts(object):
                 break
         return (cut_dimension, cut_num)
 
-
     # HyperCuts heuristic to cut a node
     def select_action(self, tree, node):
         # select dimensions
@@ -61,12 +63,13 @@ class EffiCuts(object):
         for i in range(5):
             distinct_components = set()
             for rule in node.rules:
-                left = max(rule.ranges[i*2], node.ranges[i*2])
-                right = min(rule.ranges[i*2+1], node.ranges[i*2+1])
+                left = max(rule.ranges[i * 2], node.ranges[i * 2])
+                right = min(rule.ranges[i * 2 + 1], node.ranges[i * 2 + 1])
                 distinct_components.add((left, right))
             distinct_components_count.append(len(distinct_components))
             distinct_components_ratio.append(
-                len(distinct_components) / (node.ranges[i*2+1] - node.ranges[i*2]))
+                len(distinct_components) /
+                (node.ranges[i * 2 + 1] - node.ranges[i * 2]))
         mean_count = sum(distinct_components_count) / 5.0
         cut_dimensions = [i for i in range(5) \
             if distinct_components_count[i] > mean_count]
@@ -77,8 +80,8 @@ class EffiCuts(object):
         cut_nums = []
         total_cuts = 1
         for i in cut_dimensions:
-            range_left = node.ranges[i*2]
-            range_right = node.ranges[i*2+1]
+            range_left = node.ranges[i * 2]
+            range_right = node.ranges[i * 2 + 1]
             cut_num = 1
             last_mean = len(node.rules)
             last_max = len(node.rules)
@@ -90,10 +93,12 @@ class EffiCuts(object):
                 range_per_cut = math.ceil((range_right - range_left) / cut_num)
                 child_rules_count = [0 for i in range(cut_num)]
                 for rule in node.rules:
-                    rule_range_left = max(rule.ranges[i*2], range_left)
-                    rule_range_right = min(rule.ranges[i*2+1], range_right)
-                    child_start = (rule_range_left - range_left) // range_per_cut
-                    child_end = (rule_range_right - range_left - 1) // range_per_cut
+                    rule_range_left = max(rule.ranges[i * 2], range_left)
+                    rule_range_right = min(rule.ranges[i * 2 + 1], range_right)
+                    child_start = (
+                        rule_range_left - range_left) // range_per_cut
+                    child_end = (
+                        rule_range_right - range_left - 1) // range_per_cut
                     for j in range(child_start, child_end + 1):
                         child_rules_count[j] += 1
 
@@ -124,13 +129,15 @@ class EffiCuts(object):
 
     def build_tree(self, rules):
 
-        tree = Tree(rules, self.leaf_threshold,
-            {"node_merging"     : False,
-            "rule_overlay"      : True,
-            "region_compaction" : True,
-            "rule_pushup"       : False,
-            "equi_dense"        : True,
-            "multi_dim_cut"     : False})
+        tree = Tree(
+            rules, self.leaf_threshold, {
+                "node_merging": False,
+                "rule_overlay": True,
+                "region_compaction": True,
+                "rule_pushup": False,
+                "equi_dense": True,
+                "multi_dim_cut": False
+            })
         node = tree.get_current_node()
         count = 0
         while not tree.is_finish():
@@ -143,15 +150,15 @@ class EffiCuts(object):
             else:
                 cut_dimension, cut_num = self.select_action_hicuts(tree, node)
                 if cut_num <= 1 and print_count < 100:
-                    print("hicuts cut_num <=1, node rules number:", len(node.rules))
+                    print("hicuts cut_num <=1, node rules number:",
+                          len(node.rules))
                     print_count += 1
                 tree.cut_current_node(cut_dimension, cut_num)
             node = tree.get_current_node()
             count += 1
             if count % 10000 == 0:
-                print(datetime.datetime.now(),
-                    "Depth:", tree.get_depth(),
-                    "Remaining nodes:", len(tree.nodes_to_cut))
+                print(datetime.datetime.now(), "Depth:", tree.get_depth(),
+                      "Remaining nodes:", len(tree.nodes_to_cut))
         return tree.compute_result()
 
     def separate_rules(self, rules):
@@ -229,12 +236,11 @@ class EffiCuts(object):
         for rule_subset in rule_subsets:
             result_subset = self.build_tree(rule_subset)
             result["memory_access"] += result_subset["memory_access"]
-            result["bytes_per_rule"] += result_subset["bytes_per_rule"] * len(rule_subset)
+            result["bytes_per_rule"] += result_subset["bytes_per_rule"] * len(
+                rule_subset)
             result["num_node"] += result_subset["num_node"]
         result["bytes_per_rule"] /= len(self.rules)
 
         print("%s Result %d %d %d" %
-            (datetime.datetime.now(),
-            result["memory_access"],
-            round(result["bytes_per_rule"]),
-            result["num_node"]))
+              (datetime.datetime.now(), result["memory_access"],
+               round(result["bytes_per_rule"]), result["num_node"]))

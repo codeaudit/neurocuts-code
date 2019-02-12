@@ -18,7 +18,6 @@ from ray.rllib.agents.ppo.ppo_policy_graph import PPOPolicyGraph
 from tree_env import TreeEnv
 from mask import PartitionMaskModel
 
-
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--rules",
@@ -27,36 +26,48 @@ parser.add_argument("--rules",
     default="acl1_seed_1000",
     help="Rules file name or list of rules files separated by comma.")
 
-parser.add_argument("--dump-dir",
-    type=str, default=None,
+parser.add_argument(
+    "--dump-dir",
+    type=str,
+    default=None,
     help="Dump valid trees to this directory for later inspection.")
 
 parser.add_argument(
-    "--fast", action="store_true",
+    "--fast",
+    action="store_true",
     help="Use fast hyperparam configuration for testing in development.")
 
 parser.add_argument(
-    "--partition-mode", type=str, default=None,
+    "--partition-mode",
+    type=str,
+    default=None,
     help="Set the partitioner: [None, 'top', 'efficuts', 'cutsplit'].")
 
 parser.add_argument(
-    "--reward-shape", type=str, default="linear",
+    "--reward-shape",
+    type=str,
+    default="linear",
     help="Function to use for combining depth and size weights.")
 
 parser.add_argument(
-    "--depth-weight", type=float, default=1.0,
+    "--depth-weight",
+    type=float,
+    default=1.0,
     help="Weight to use for combining depth and size, in [0, 1]")
 
 parser.add_argument(
-    "--num-workers", type=int, default=0,
+    "--num-workers",
+    type=int,
+    default=0,
     help="Number of parallel workers to request from RLlib.")
 
 parser.add_argument(
-    "--gpu", action="store_true",
-    help="Whether to tell RLlib to use a GPU.")
+    "--gpu", action="store_true", help="Whether to tell RLlib to use a GPU.")
 
 parser.add_argument(
-    "--redis-address", type=str, default=None,
+    "--redis-address",
+    type=str,
+    default=None,
     help="Address of existing Ray cluster to connect to.")
 
 

@@ -8,8 +8,7 @@ import random
 parser = argparse.ArgumentParser()
 
 parser.add_argument(
-    "file", type=str,
-    help="The tree pkl file to load and analyze.")
+    "file", type=str, help="The tree pkl file to load and analyze.")
 
 
 def print_info(tree):
@@ -26,12 +25,10 @@ def check_classification(tree):
         if random.random() > 0.5:
             packet = random.choice(tree.rules).sample_packet()
         else:
-            packet = (
-                random.randint(0, 2**32 - 1),
-                random.randint(0, 2**32 - 1),
-                random.randint(0, 2**16 - 1),
-                random.randint(0, 2**16 - 1),
-                random.randint(0, 2**5 - 1))
+            packet = (random.randint(0, 2**32 - 1), random.randint(
+                0, 2**32 - 1), random.randint(0, 2**16 - 1),
+                      random.randint(0, 2**16 - 1), random.randint(
+                          0, 2**5 - 1))
         expected_match = None
         for r in tree.rules:
             if r.matches(packet):
@@ -66,9 +63,8 @@ def _check_rule_distribution(node):
                 assert n.is_intersect_multi_dimension(r.ranges)
                 count += 1
         if count == 0:
-            assert False, (
-                "Rule not found in any children",
-                node.id, r.ranges, [n.ranges for n in node.children])
+            assert False, ("Rule not found in any children", node.id, r.ranges,
+                           [n.ranges for n in node.children])
 
 
 def _check_disjointness(nodes):

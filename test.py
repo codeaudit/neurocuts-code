@@ -6,6 +6,7 @@ from hypercuts import *
 from efficuts import *
 from cutsplit import *
 
+
 def test_tree_():
     print("========== rule ==========")
     rule = Rule([0, 10, 0, 10, 10, 20, 0, 1, 0, 1])
@@ -13,9 +14,13 @@ def test_tree_():
     print("True", rule.is_intersect(2, 0, 11))
     print("False", rule.is_intersect(2, 0, 10))
     print("False", rule.is_intersect(2, 20, 21))
-    print("True", rule.is_intersect_multi_dimension([0, 10, 0, 10, 0, 11, 0, 1, 0, 1]))
-    print("False", rule.is_intersect_multi_dimension([0, 10, 0, 10, 0, 10, 0, 1, 0, 1]))
-    print("False", rule.is_intersect_multi_dimension([0, 10, 0, 10, 20, 21, 0, 1, 0, 1]))
+    print("True",
+          rule.is_intersect_multi_dimension([0, 10, 0, 10, 0, 11, 0, 1, 0, 1]))
+    print("False",
+          rule.is_intersect_multi_dimension([0, 10, 0, 10, 0, 10, 0, 1, 0, 1]))
+    print(
+        "False",
+        rule.is_intersect_multi_dimension([0, 10, 0, 10, 20, 21, 0, 1, 0, 1]))
 
     print("========== node ==========")
     rules = []
@@ -72,6 +77,7 @@ def test_tree_():
     assert not tree.check_contiguous_region(node2, node3)
     assert tree.check_contiguous_region(node3, node4)
 
+
 def test_tree():
     tree = Tree([], 1)
 
@@ -93,7 +99,8 @@ def test_tree():
     node1 = Node(1, [0, 10, 10, 20, 10, 20, 0, 1, 0, 1], [rule0, rule1], 1)
     node2 = Node(2, [10, 20, 0, 10, 10, 20, 0, 1, 0, 1], [rule1], 1)
     node3 = Node(3, [10, 20, 10, 20, 10, 20, 0, 1, 0, 1], [rule2], 1)
-    node4 = Node(4, [20, 30, 20, 30, 10, 20, 0, 1, 0, 1], [rule0, rule1, rule2], 1)
+    node4 = Node(4, [20, 30, 20, 30, 10, 20, 0, 1, 0, 1],
+                 [rule0, rule1, rule2], 1)
     nodes = [node0, node1, node2, node3, node4]
     nodes = tree.refinement_equi_dense(nodes)
     assert len(nodes) == 4
@@ -112,7 +119,8 @@ def test_tree():
     node1 = Node(1, [0, 10, 10, 20, 10, 20, 0, 1, 0, 1], [rule0, rule1], 1)
     node2 = Node(2, [10, 20, 0, 10, 10, 20, 0, 1, 0, 1], [rule0], 1)
     node3 = Node(3, [10, 20, 10, 20, 10, 20, 0, 1, 0, 1], [rule0, rule1], 1)
-    node4 = Node(4, [20, 30, 20, 30, 10, 20, 0, 1, 0, 1], [rule0, rule1, rule2], 1)
+    node4 = Node(4, [20, 30, 20, 30, 10, 20, 0, 1, 0, 1],
+                 [rule0, rule1, rule2], 1)
     nodes = [node0, node1, node2, node3, node4]
     nodes = tree.refinement_equi_dense(nodes)
     assert len(nodes) == 2
@@ -124,6 +132,7 @@ def test_tree():
     assert nodes[1].ranges == node4.ranges
     assert nodes[1].rules == node4.rules
     assert nodes[1].depth == node4.depth
+
 
 def test_refinements():
     rules = []
@@ -140,7 +149,8 @@ def test_refinements():
     ranges = [0, 1000, 0, 1000, 0, 1000, 0, 1000, 0, 1000]
     node1 = Node(0, [0, 100, 0, 100, 0, 1000, 0, 1000, 0, 1000], rules1, 1)
     node2 = Node(1, [0, 100, 100, 200, 0, 1000, 0, 1000, 0, 1000], rules2, 1)
-    node3 = Node(1, [0, 100, 100, 200, 0, 1000, 0, 1000, 0, 1000], rules3[1:], 1)
+    node3 = Node(1, [0, 100, 100, 200, 0, 1000, 0, 1000, 0, 1000], rules3[1:],
+                 1)
     print("True", tree.refinement_node_merging(node1, node2))
     print("False", tree.refinement_node_merging(node1, node3))
 
@@ -204,6 +214,7 @@ def test_refinements():
     tree.refinement_rule_pushup()
     tree.print_layers()
 
+
 def test_hicuts():
     print("========== hicuts ==========")
     rules = []
@@ -213,6 +224,7 @@ def test_hicuts():
     rules.append(Rule([10, 20, 10, 20, 0, 1, 0, 1, 0, 1]))
     cuts = HiCuts(rules)
     cuts.train()
+
 
 def test_hypercuts():
     print("========== hypercuts ==========")
@@ -225,14 +237,19 @@ def test_hypercuts():
     cuts.leaf_threshold = 1
     cuts.train()
 
+
 def test_efficuts():
     print("========== efficuts ==========")
 
     # test separate rules
-    rule0 = Rule([0, 2**32 * 0.05, 0, 2**32 * 0.05 - 1,
-        0, 2**16 * 0.5 - 1, 0, 2**16 * 0.5, 0, 2**8 * 0.5 - 1])
-    rule1 = Rule([0, 2**32 * 0.05, 0, 2**32 * 0.05 - 1,
-        0, 2**16 * 0.5 - 1, 0, 2**16 * 0.5, 0, 2**8 * 0.5])
+    rule0 = Rule([
+        0, 2**32 * 0.05, 0, 2**32 * 0.05 - 1, 0, 2**16 * 0.5 - 1, 0,
+        2**16 * 0.5, 0, 2**8 * 0.5 - 1
+    ])
+    rule1 = Rule([
+        0, 2**32 * 0.05, 0, 2**32 * 0.05 - 1, 0, 2**16 * 0.5 - 1, 0,
+        2**16 * 0.5, 0, 2**8 * 0.5
+    ])
     rules = [rule0, rule1]
     cuts = EffiCuts(rules)
     rule_subsets = cuts.separate_rules(rules)
@@ -257,6 +274,7 @@ def test_efficuts():
     assert rule_subsets[3] == [10]
     assert rule_subsets[4] == [24]
     assert rule_subsets[5] == [31]
+
 
 def test_cutsplit():
     print("========== cutsplit ==========")
@@ -287,14 +305,15 @@ def test_cutsplit():
     assert rule_subsets[2] == [rule2]
 
     # test select action
-    rule0 = Rule(0, [0, 2**12, 0, 2**12+1, 0, 1, 0, 1, 0, 1])
+    rule0 = Rule(0, [0, 2**12, 0, 2**12 + 1, 0, 1, 0, 1, 0, 1])
     rule1 = Rule(1, [2**8, 2**24, 2**12, 2**25, 0, 1, 0, 1, 0, 1])
     rule2 = Rule(2, [0, 2**25, 2**20, 2**24, 0, 1, 0, 1, 0, 1])
     rule3 = Rule(3, [0, 2**32, 0, 2**32, 0, 1, 0, 1, 0, 1])
     node = Node(0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8],
-        [rule0, rule1, rule2, rule3], 1)
+                [rule0, rule1, rule2, rule3], 1)
     cut_dimension, cut_position = cuts.select_action(None, node)
     assert cut_dimension == 1 and cut_position == 1048576
+
 
 if __name__ == "__main__":
     #test_tree()

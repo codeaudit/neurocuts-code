@@ -22,12 +22,15 @@ for i in range(1, 3):
     seed_files.append("ipc%d_seed" % i)
     ipc_seed_files.append("ipc%d_seed" % i)
 
+
 def exe_cmd(cmd):
     #print "\t", cmd
     subprocess.call(cmd, shell=True)
 
+
 def sync():
     exe_cmd("rsync -r * netx3:~/xinjin/neurocuts")
+
 
 def gen_rules():
     for i in seed_files:
@@ -36,7 +39,9 @@ def gen_rules():
                 "%d 2 0.5 -0.1 %s_%d" % (j, i, j)
             exe_cmd(cmd)
 
+
 EXPRS = ["seed_1000"]
+
 
 def run_hicuts():
     for i in EXPRS:
@@ -45,12 +50,14 @@ def run_hicuts():
         cuts = HiCuts(rules)
         cuts.train()
 
+
 def run_hypercuts():
     for i in EXPRS:
         print(i)
         rules = load_rules_from_file("classbench/acl1_%s" % i)
         cuts = HyperCuts(rules)
         cuts.train()
+
 
 def run_efficuts():
     for i in EXPRS:
@@ -59,6 +66,7 @@ def run_efficuts():
         cuts = EffiCuts(rules)
         cuts.train()
 
+
 def run_cutsplit():
     for i in EXPRS:
         print(i)
@@ -66,15 +74,16 @@ def run_cutsplit():
         cuts = CutSplit(rules)
         cuts.train()
 
+
 def run_all():
     # seed_files = ["ipc2_seed"]
     j_list = [1000, 10000, 100000]
     k_list = ["HyperCuts"]
     for i in seed_files:
         for j in j_list:
-        # for j in [1000, 10000, 100000]:
+            # for j in [1000, 10000, 100000]:
             print("%s Rules %s_%d" % (datetime.datetime.now(), i, j))
-            for k in k_list:#, "CutSplit"]:
+            for k in k_list:  #, "CutSplit"]:
                 rules = load_rules_from_file("classbench/%s_%d" % (i, j))
                 cuts = None
                 if k == "HiCuts":
@@ -86,6 +95,7 @@ def run_all():
                 elif k == "CutSplit":
                     cuts = CutSplit(rules)
                 cuts.train()
+
 
 def run_all_hicuts(files_type):
     # seed_files = ["ipc2_seed"]
@@ -102,9 +112,9 @@ def run_all_hicuts(files_type):
     k_list = ["HiCuts"]
     for j in j_list:
         for i in i_list:
-        # for j in [1000, 10000, 100000]:
+            # for j in [1000, 10000, 100000]:
             print("%s Rules %s_%d" % (datetime.datetime.now(), i, j))
-            for k in k_list:#, "CutSplit"]:
+            for k in k_list:  #, "CutSplit"]:
                 rules = load_rules_from_file("classbench/%s_%d" % (i, j))
                 cuts = None
                 if k == "HiCuts":
@@ -116,6 +126,7 @@ def run_all_hicuts(files_type):
                 elif k == "CutSplit":
                     cuts = CutSplit(rules)
                 cuts.train()
+
 
 def run_all_hypercuts(files_type):
     # seed_files = ["ipc2_seed"]
@@ -133,9 +144,9 @@ def run_all_hypercuts(files_type):
     k_list = ["HyperCuts"]
     for i in i_list:
         for j in j_list:
-        # for j in [1000, 10000, 100000]:
+            # for j in [1000, 10000, 100000]:
             print("%s Rules %s_%d" % (datetime.datetime.now(), i, j))
-            for k in k_list:#, "CutSplit"]:
+            for k in k_list:  #, "CutSplit"]:
                 rules = load_rules_from_file("classbench/%s_%d" % (i, j))
                 cuts = None
                 if k == "HiCuts":
@@ -147,6 +158,7 @@ def run_all_hypercuts(files_type):
                 elif k == "CutSplit":
                     cuts = CutSplit(rules)
                 cuts.train()
+
 
 def run_file(file_name, alg):
     k = alg
@@ -178,9 +190,9 @@ def run_all_efficuts(files_type):
     k_list = ["EffiCuts"]
     for j in j_list:
         for i in i_list:
-        # for j in [1000, 10000, 100000]:
+            # for j in [1000, 10000, 100000]:
             print("%s Rules %s_%d" % (datetime.datetime.now(), i, j))
-            for k in k_list:#, "CutSplit"]:
+            for k in k_list:  #, "CutSplit"]:
                 rules = load_rules_from_file("classbench/%s_%d" % (i, j))
                 cuts = None
                 if k == "HiCuts":
@@ -192,6 +204,7 @@ def run_all_efficuts(files_type):
                 elif k == "CutSplit":
                     cuts = CutSplit(rules)
                 cuts.train()
+
 
 def gen_result(file_name):
     fin = open(file_name)
@@ -208,6 +221,7 @@ def gen_result(file_name):
             print("%s %s %s %s" % (rules, algorithm, items[3], items[4]))
         oneline = fin.readline()
     fin.close()
+
 
 if __name__ == "__main__":
     if len(sys.argv) <= 1:
@@ -230,7 +244,7 @@ if __name__ == "__main__":
     elif sys.argv[1] == "run_file":
         run_file(sys.argv[2], sys.argv[3])
     elif sys.argv[1] == "expr":
-#        run_all()
+        #        run_all()
         run_hicuts()
 #        run_hypercuts()
 #        run_efficuts()

@@ -3,6 +3,7 @@ import re
 
 # import numpy as np
 
+
 class Rule:
     def __init__(self, priority, ranges):
         # each range is left inclusive and right exclusive, i.e., [left, right)
@@ -33,9 +34,10 @@ class Rule:
     def __str__(self):
         result = ""
         for i in range(len(self.names)):
-            result += "%s:[%d, %d) " % (self.names[i],
-                self.ranges[i*2], self.ranges[i*2+1])
+            result += "%s:[%d, %d) " % (self.names[i], self.ranges[i * 2],
+                                        self.ranges[i * 2 + 1])
         return result
+
 
 def load_rules_from_file(file_name):
     rules = []
@@ -47,7 +49,7 @@ def load_rules_from_file(file_name):
         r'(.*?)')
     for idx, line in enumerate(open(file_name)):
         elements = line[1:-1].split('\t')
-        line = line.replace('\t',' ')
+        line = line.replace('\t', ' ')
 
         sip0, sip1, sip2, sip3, sip_mask_len, \
         dip0, dip1, dip2, dip3, dip_mask_len, \
@@ -71,11 +73,12 @@ def load_rules_from_file(file_name):
             proto_begin = 0
             proto_end = 0xff
 
-        rules.append(Rule(idx, [sip_begin, sip_end+1,
-            dip_begin, dip_end+1,
-            sport_begin, sport_end+1,
-            dport_begin, dport_end+1,
-            proto_begin, proto_end+1]))
+        rules.append(
+            Rule(idx, [
+                sip_begin, sip_end + 1, dip_begin, dip_end + 1, sport_begin,
+                sport_end + 1, dport_begin, dport_end + 1, proto_begin,
+                proto_end + 1
+            ]))
     return rules
 
 
@@ -85,13 +88,15 @@ def to_bits(value, n):
     assert len(b) <= n, (value, b, n)
     return [0.0] * (n - len(b)) + [float(i) for i in b]
 
+
 def compare_region(ranges1, ranges2):
     flag = True
     for i in range(10):
-        if ranges1[i]!=ranges2[i]:
+        if ranges1[i] != ranges2[i]:
             flag = False
             break
     return flag
+
 
 class Node:
     def __init__(self, id, ranges, rules, depth, onehot_state=False):
@@ -148,24 +153,30 @@ class Node:
             result += "Pushup Rules:\n"
             for rule in self.pushup_rules:
                 result += str(rule) + "\n"
-        return  result
+        return result
+
 
 class Tree:
-    def __init__(self, rules, leaf_threshold,
-        refinements = {
-            "node_merging"      : False,
-            "rule_overlay"      : False,
-            "region_compaction" : False,
-            "rule_pushup"       : False,
-            "equi_dense"        : False},
-        onehot_state = False):
+    def __init__(
+            self,
+            rules,
+            leaf_threshold,
+            refinements={
+                "node_merging": False,
+                "rule_overlay": False,
+                "region_compaction": False,
+                "rule_pushup": False,
+                "equi_dense": False
+            },
+            onehot_state=False):
         # hyperparameters
         self.leaf_threshold = leaf_threshold
         self.refinements = refinements
         self.onehot_state = onehot_state
 
         self.rules = rules
-        self.root = self.create_node(0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1)
+        self.root = self.create_node(
+            0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1)
         if (self.refinements["region_compaction"]):
             self.refinement_region_compaction(self.root)
 
@@ -208,7 +219,6 @@ class Tree:
                 self.refinement_region_compaction(child)
         # if (self.refinements["rule_pushup"]):
 
-
         node.children.extend(children)
         children.reverse()
         pop_node = self.nodes_to_cut.pop()
@@ -222,25 +232,26 @@ class Tree:
     def cut_node(self, node, cut_dimension, cut_num):
         self.depth = max(self.depth, node.depth + 1)
         node.action = (cut_dimension, cut_num)
-        range_left = node.ranges[cut_dimension*2]
-        range_right = node.ranges[cut_dimension*2+1]
+        range_left = node.ranges[cut_dimension * 2]
+        range_right = node.ranges[cut_dimension * 2 + 1]
         range_per_cut = math.ceil((range_right - range_left) / cut_num)
 
         children = []
         for i in range(cut_num):
             child_ranges = list(node.ranges)
-            child_ranges[cut_dimension*2] = range_left + i * range_per_cut
-            child_ranges[cut_dimension*2+1] = min(range_right,
-                range_left + (i+1) * range_per_cut)
+            child_ranges[cut_dimension * 2] = range_left + i * range_per_cut
+            child_ranges[cut_dimension * 2 + 1] = min(
+                range_right, range_left + (i + 1) * range_per_cut)
 
             child_rules = []
             for rule in node.rules:
                 if rule.is_intersect(cut_dimension,
-                    child_ranges[cut_dimension*2],
-                    child_ranges[cut_dimension*2+1]):
+                                     child_ranges[cut_dimension * 2],
+                                     child_ranges[cut_dimension * 2 + 1]):
                     child_rules.append(rule)
 
-            child = self.create_node(self.node_count, child_ranges, child_rules, node.depth + 1)
+            child = self.create_node(self.node_count, child_ranges,
+                                     child_rules, node.depth + 1)
             children.append(child)
             self.node_count += 1
 
@@ -254,8 +265,8 @@ class Tree:
 
         range_per_cut = []
         for i in range(len(cut_dimensions)):
-            range_left = node.ranges[cut_dimensions[i]*2]
-            range_right = node.ranges[cut_dimensions[i]*2+1]
+            range_left = node.ranges[cut_dimensions[i] * 2]
+            range_right = node.ranges[cut_dimensions[i] * 2 + 1]
             cut_num = cut_nums[i]
             range_per_cut.append(
                 math.ceil((range_right - range_left) / cut_num))
@@ -269,8 +280,9 @@ class Tree:
                 dimension = cut_dimensions[i]
                 child_ranges[dimension*2] = node.ranges[dimension*2] + \
                     cut_index[i] * range_per_cut[i]
-                child_ranges[dimension*2+1] = min(node.ranges[dimension*2+1],
-                    node.ranges[dimension*2] + (cut_index[i]+1) * range_per_cut[i])
+                child_ranges[dimension * 2 + 1] = min(
+                    node.ranges[dimension * 2 + 1], node.ranges[dimension * 2]
+                    + (cut_index[i] + 1) * range_per_cut[i])
 
             # compute child rules
             child_rules = []
@@ -279,7 +291,8 @@ class Tree:
                     child_rules.append(rule)
 
             # create new child
-            child = self.create_node(self.node_count, child_ranges, child_rules, node.depth + 1)
+            child = self.create_node(self.node_count, child_ranges,
+                                     child_rules, node.depth + 1)
             children.append(child)
             self.node_count += 1
 
@@ -295,7 +308,7 @@ class Tree:
                     break
 
             if i == len(cut_nums):
-                break;
+                break
 
         self.update_tree(node, children)
         return children
@@ -304,25 +317,26 @@ class Tree:
         self.depth = max(self.depth, self.current_node.depth + 1)
         node = self.current_node
         node.action = (cut_dimension, cut_position)
-        range_left = node.ranges[cut_dimension*2]
-        range_right = node.ranges[cut_dimension*2+1]
+        range_left = node.ranges[cut_dimension * 2]
+        range_right = node.ranges[cut_dimension * 2 + 1]
         range_per_cut = cut_position - range_left
 
         children = []
         for i in range(2):
             child_ranges = node.ranges.copy()
-            child_ranges[cut_dimension*2] = range_left + i * range_per_cut
-            child_ranges[cut_dimension*2+1] = min(range_right,
-                range_left + (i+1) * range_per_cut)
+            child_ranges[cut_dimension * 2] = range_left + i * range_per_cut
+            child_ranges[cut_dimension * 2 + 1] = min(
+                range_right, range_left + (i + 1) * range_per_cut)
 
             child_rules = []
             for rule in node.rules:
                 if rule.is_intersect(cut_dimension,
-                    child_ranges[cut_dimension*2],
-                    child_ranges[cut_dimension*2+1]):
+                                     child_ranges[cut_dimension * 2],
+                                     child_ranges[cut_dimension * 2 + 1]):
                     child_rules.append(rule)
 
-            child = self.create_node(self.node_count, child_ranges, child_rules, node.depth + 1)
+            child = self.create_node(self.node_count, child_ranges,
+                                     child_rules, node.depth + 1)
             children.append(child)
             self.node_count += 1
 
@@ -356,8 +370,9 @@ class Tree:
 
     def merge_region(self, node1, node2):
         for i in range(5):
-            node1.ranges[i*2] = min(node1.ranges[i*2], node2.ranges[i*2])
-            node1.ranges[i*2+1] = max(node1.ranges[i*2+1], node2.ranges[i*2+1])
+            node1.ranges[i * 2] = min(node1.ranges[i * 2], node2.ranges[i * 2])
+            node1.ranges[i * 2 + 1] = max(node1.ranges[i * 2 + 1],
+                                          node2.ranges[i * 2 + 1])
 
     def refinement_node_merging(self, parent, nodes):
         nodes_bu = nodes[:]
@@ -383,7 +398,8 @@ class Tree:
         for node in nodes:
             if (set(node.rules)==set(parent.rules)) and \
                 compare_region(node.ranges, parent.ranges):
-                print("merged node the same as parent, rules_num:", len(node.rules))
+                print("merged node the same as parent, rules_num:",
+                      len(node.rules))
                 # break
                 return nodes_bu
 
@@ -395,9 +411,9 @@ class Tree:
 
         new_rules = []
         for i in range(len(node.rules) - 1):
-            rule = node.rules[len(node.rules) -  1 - i]
+            rule = node.rules[len(node.rules) - 1 - i]
             flag = False
-            for j in range(0, len(node.rules) -  1 - i):
+            for j in range(0, len(node.rules) - 1 - i):
                 high_priority_rule = node.rules[j]
                 if rule.is_covered_by(high_priority_rule, node.ranges):
                     flag = True
@@ -415,19 +431,23 @@ class Tree:
         new_ranges = list(node.rules[0].ranges)
         for rule in node.rules[1:]:
             for i in range(5):
-                new_ranges[i*2] = min(new_ranges[i*2], rule.ranges[i*2])
-                new_ranges[i*2+1] = max(new_ranges[i*2+1], rule.ranges[i*2+1])
+                new_ranges[i * 2] = min(new_ranges[i * 2], rule.ranges[i * 2])
+                new_ranges[i * 2 + 1] = max(new_ranges[i * 2 + 1],
+                                            rule.ranges[i * 2 + 1])
         for i in range(5):
-            node.ranges[i*2] = max(new_ranges[i*2], node.ranges[i*2])
-            node.ranges[i*2+1] = min(new_ranges[i*2+1], node.ranges[i*2+1])
+            node.ranges[i * 2] = max(new_ranges[i * 2], node.ranges[i * 2])
+            node.ranges[i * 2 + 1] = min(new_ranges[i * 2 + 1],
+                                         node.ranges[i * 2 + 1])
         # node.compute_state()
 
     def refinement_rule_pushup_ongoing(self, node):
 
         for j in range(1, len(node.children)):
-            node.pushup_rules = node.pushup_rules.intersection(node.children[j].pushup_rules)
+            node.pushup_rules = node.pushup_rules.intersection(
+                node.children[j].pushup_rules)
         for child in node.children:
-            child.pushup_rules = child.pushup_rules.difference(node.pushup_rules)
+            child.pushup_rules = child.pushup_rules.difference(
+                node.pushup_rules)
 
     def refinement_rule_pushup(self):
         nodes_by_layer = [None for i in range(self.depth)]
@@ -438,7 +458,7 @@ class Tree:
             next_layer_nodes = []
             for node in current_layer_nodes:
                 next_layer_nodes.extend(node.children)
-            nodes_by_layer[i+1] = next_layer_nodes
+            nodes_by_layer[i + 1] = next_layer_nodes
             current_layer_nodes = next_layer_nodes
 
         for i in reversed(range(self.depth)):
@@ -448,9 +468,11 @@ class Tree:
                 else:
                     node.pushup_rules = set(node.children[0].pushup_rules)
                     for j in range(1, len(node.children)):
-                        node.pushup_rules = node.pushup_rules.intersection(node.children[j].pushup_rules)
+                        node.pushup_rules = node.pushup_rules.intersection(
+                            node.children[j].pushup_rules)
                     for child in node.children:
-                        child.pushup_rules = child.pushup_rules.difference(node.pushup_rules)
+                        child.pushup_rules = child.pushup_rules.difference(
+                            node.pushup_rules)
 
     def refinement_equi_dense(self, nodes):
         # try to merge
@@ -458,8 +480,8 @@ class Tree:
         max_rule_count = -1
         for node in nodes:
             nodes_copy.append(
-                Node(node.id, list(node.ranges),
-                    list(node.rules), node.depth, self.onehot_state))
+                Node(node.id, list(node.ranges), list(node.rules), node.depth,
+                     self.onehot_state))
             max_rule_count = max(max_rule_count, len(node.rules))
         while True:
             flag = True
@@ -467,12 +489,13 @@ class Tree:
             last_node = nodes_copy[0]
             for i in range(1, len(nodes_copy)):
                 if self.check_contiguous_region(last_node, nodes_copy[i]):
-                    rules = set(last_node.rules).union(set(nodes_copy[i].rules))
+                    rules = set(last_node.rules).union(
+                        set(nodes_copy[i].rules))
                     if len(rules) < len(last_node.rules) + len(nodes_copy[i].rules) and \
                         len(rules) < max_rule_count:
                         rules = list(rules)
                         rules.sort(key=lambda i: i.priority)
-                        last_node.rules =rules
+                        last_node.rules = rules
                         self.merge_region(last_node, nodes_copy[i])
                         flag = False
                         continue
@@ -499,8 +522,8 @@ class Tree:
         self.result["num_node"] += 1
         # compute memory access
         if self.is_leaf(node):
-                self.result["memory_access"] = max(self.result["memory_access"],
-                    node.depth)
+            self.result["memory_access"] = max(self.result["memory_access"],
+                                               node.depth)
         del node.rules
         del node.children
         del node
@@ -536,15 +559,15 @@ class Tree:
                 result["num_node"] += 1
                 # compute memory access
                 if self.is_leaf(node):
-                        result["memory_access"] = max(result["memory_access"],
-                            node.depth)
+                    result["memory_access"] = max(result["memory_access"],
+                                                  node.depth)
 
             nodes = next_layer_nodes
         result["bytes_per_rule"] = result["bytes_per_rule"] / len(self.rules)
         # result["num_node"] = result["num_leaf_node"] + result["num_nonleaf_node"]
         return result
 
-    def print_layers(self, layer_num = 5):
+    def print_layers(self, layer_num=5):
         nodes = [self.root]
         for i in range(layer_num):
             if len(nodes) == 0:
@@ -563,8 +586,8 @@ class Tree:
         while len(nodes) != 0:
             next_layer_nodes = []
             for node in nodes:
-                result += "%d; %s; %s; [" % (
-                    node.id, str(node.action), str(node.ranges))
+                result += "%d; %s; %s; [" % (node.id, str(node.action),
+                                             str(node.ranges))
                 for child in node.children:
                     result += str(child.id) + " "
                 result += "]\n"
