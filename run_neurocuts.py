@@ -27,6 +27,10 @@ parser.add_argument("--rules",
     default="acl1_seed_1000",
     help="Rules file name or list of rules files separated by comma.")
 
+parser.add_argument("--dump-dir",
+    type=str, default=None,
+    help="Dump valid trees to this directory for later inspection.")
+
 parser.add_argument(
     "--fast", action="store_true",
     help="Use fast hyperparam configuration for testing in development.")
@@ -95,6 +99,7 @@ if __name__ == "__main__":
             env_config["rules"],
             max_depth=env_config["max_depth"],
             max_actions_per_episode=env_config["max_actions"],
+            dump_dir=env_config["dump_dir"],
             depth_weight=env_config["depth_weight"],
             reward_shape=env_config["reward_shape"],
             partition_mode=env_config["partition_mode"]))
@@ -126,6 +131,7 @@ if __name__ == "__main__":
                     "on_episode_end": tune.function(on_episode_end),
                 },
                 "env_config": {
+                    "dump_dir": args.dump_dir,
                     "partition_mode": args.partition_mode,
                     "reward_shape": args.reward_shape,
                     "max_depth": 100 if args.fast else 500,

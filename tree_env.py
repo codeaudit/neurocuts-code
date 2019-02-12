@@ -1,4 +1,6 @@
 import collections
+import time
+import os
 import numpy as np
 import pickle
 from gym.spaces import Tuple, Box, Discrete, Dict
@@ -32,7 +34,8 @@ class TreeEnv(MultiAgentEnv):
             max_depth=100,
             partition_mode=None,
             reward_shape="linear",
-            depth_weight=1.0):
+            depth_weight=1.0,
+            dump_dir=None):
 
         self.reward_shape = {
             "linear": lambda x: x,
@@ -45,6 +48,10 @@ class TreeEnv(MultiAgentEnv):
             self.force_partition = partition_mode
         else:
             self.force_partition = False
+
+        self.dump_dir = os.path.expanduser(dump_dir)
+        if self.dump_dir:
+            os.makedirs(self.dump_dir, exist_ok=True)
 
         self.depth_weight = depth_weight
         self.rules_file = rules_file
@@ -182,8 +189,13 @@ class TreeEnv(MultiAgentEnv):
                 "num_splits": self.num_actions,
                 "rules_file": self.rules_file,
             }
-            with open("tree.pkl", "wb") as f:
-                pickle.dump(self.tree, f)
+            if not nodes_remaining and self.dump_dir:
+                out = os.path.join(
+                    self.dump_dir,
+                    "tree-{}-{}.pkl".format(
+                        result["memory_access"], time.time()))
+                with open(out, "wb") as f:
+                    pickle.dump(self.tree, f)
             return obs, rew, {"__all__": True}, info
 
         needs_split = [self.tree.get_current_node()]
