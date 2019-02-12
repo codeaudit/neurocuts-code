@@ -1,7 +1,6 @@
 import sys
 
 from tree import *
-from neurocuts import *
 from hicuts import *
 from hypercuts import *
 from efficuts import *
@@ -205,17 +204,6 @@ def test_refinements():
     tree.refinement_rule_pushup()
     tree.print_layers()
 
-def test_neurocuts():
-    print("========== neurocuts ==========")
-    random.seed(1)
-    rules = []
-    rules.append(Rule([0, 10, 0, 10, 0, 1, 0, 1, 0, 1]))
-    rules.append(Rule([0, 10, 10, 20, 0, 1, 0, 1, 0, 1]))
-    rules.append(Rule([10, 20, 0, 10, 0, 1, 0, 1, 0, 1]))
-    rules.append(Rule([10, 20, 10, 20, 0, 1, 0, 1, 0, 1]))
-    neuro_cuts = NeuroCuts(rules)
-    neuro_cuts.train()
-
 def test_hicuts():
     print("========== hicuts ==========")
     rules = []
@@ -311,7 +299,6 @@ def test_cutsplit():
 if __name__ == "__main__":
     #test_tree()
     #test_refinements()
-    #test_neurocuts()
     #test_hicuts()
     #test_hypercuts()
     #test_efficuts()
