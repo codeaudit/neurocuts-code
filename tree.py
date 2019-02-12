@@ -94,15 +94,6 @@ def to_bits(value, n):
     return [0.0] * (n - len(b)) + [float(i) for i in b]
 
 
-def compare_region(ranges1, ranges2):
-    flag = True
-    for i in range(10):
-        if ranges1[i]!=ranges2[i]:
-            flag = False
-            break
-    return flag
-
-
 def onehot_encode(arr, n):
    out = []
    for a in arr:
@@ -244,7 +235,7 @@ class Tree:
 
     def update_tree(self, node, children):
         if self.refinements["node_merging"]:
-            children = self.refinement_node_merging(node, children)
+            children = self.refinement_node_merging(children)
 
         if self.refinements["equi_dense"]:
             children = self.refinement_equi_dense(children)
@@ -475,8 +466,7 @@ class Tree:
             node1.ranges[i*2] = min(node1.ranges[i*2], node2.ranges[i*2])
             node1.ranges[i*2+1] = max(node1.ranges[i*2+1], node2.ranges[i*2+1])
 
-    def refinement_node_merging(self, parent, nodes):
-        nodes_bu = nodes[:]
+    def refinement_node_merging(self, nodes):
         while True:
             flag = True
             merged_nodes = [nodes[0]]
@@ -494,13 +484,6 @@ class Tree:
             nodes = merged_nodes
             if flag:
                 break
-
-        # check if merged node generate the parent node
-        for node in nodes:
-            if (set(node.rules)==set(parent.rules)) and \
-                compare_region(node.ranges, parent.ranges):
-                # break
-                return nodes_bu
 
         return nodes
 
