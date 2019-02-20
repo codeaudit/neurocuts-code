@@ -20,7 +20,7 @@ class HiCuts(object):
         max_distinct_components_count = -1
         for i in range(5):
             distinct_components = set()
-            for rule in node.rules:
+            for rule in node.rules.get_rules():
                 left = max(rule.ranges[i * 2], node.ranges[i * 2])
                 right = min(rule.ranges[i * 2 + 1], node.ranges[i * 2 + 1])
                 distinct_components.add((left, right))
@@ -38,14 +38,14 @@ class HiCuts(object):
         while True:
             sm_C = cut_num
             range_per_cut = math.ceil((range_right - range_left) / cut_num)
-            for rule in node.rules:
+            for rule in node.rules.get_rules():
                 rule_range_left = max(rule.ranges[cut_dimension * 2],
                                       range_left)
                 rule_range_right = min(rule.ranges[cut_dimension * 2 + 1],
                                        range_right)
                 sm_C += (rule_range_right - range_left - 1) // range_per_cut - \
                     (rule_range_left - range_left) // range_per_cut + 1
-            if sm_C < self.spfac * len(node.rules) and \
+            if sm_C < self.spfac * node.rules.length() and \
                     cut_num * 2 <= range_right - range_left:
                 cut_num *= 2
             else:
@@ -57,7 +57,7 @@ class HiCuts(object):
         tree = self.build_tree()
 
         result = tree.compute_result()
-        result["bytes_per_rule"] = result["bytes_per_rule"] / len(tree.rules)
+        result["bytes_per_rule"] = result["bytes_per_rule"] / tree.rules.length()
         print("------mem_result-----")
         print("%s Result %d %d %d" %
               (datetime.datetime.now(), result["memory_access"],
