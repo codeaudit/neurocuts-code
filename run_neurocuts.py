@@ -29,7 +29,7 @@ parser.add_argument("--rules",
 parser.add_argument(
     "--dump-dir",
     type=str,
-    default="/tmp/neurocuts_out",
+    default="/tmp/trees",
     help="Dump valid trees to this directory for later inspection.")
 
 parser.add_argument(
