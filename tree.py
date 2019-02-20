@@ -3,6 +3,7 @@ import random
 import numpy as np
 import re
 import sys
+from ruleset import RuleSet
 
 sys.setrecursionlimit(99999)
 SPLIT_CACHE = {}
@@ -294,7 +295,7 @@ class Tree:
         self.leaf_threshold = leaf_threshold
         self.refinements = refinements
 
-        self.rules = rules
+        self.rules = RuleSet(rules)
         self.root = self.create_node(
             0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1,
             None, None)
@@ -436,12 +437,9 @@ class Tree:
             child_ranges[cut_dimension * 2 + 1] = min(
                 range_right, range_left + (i + 1) * range_per_cut)
 
-            child_rules = []
-            for rule in node.rules:
-                if rule.is_intersect(cut_dimension,
-                                     child_ranges[cut_dimension * 2],
-                                     child_ranges[cut_dimension * 2 + 1]):
-                    child_rules.append(rule)
+            child_rules = self.rules.intersect(cut_dimension,
+                    child_ranges[cut_dimension * 2],
+                    child_ranges[cut_dimension * 2 + 1])
 
             child = self.create_node(self.node_count, child_ranges,
                                      child_rules, node.depth + 1,
