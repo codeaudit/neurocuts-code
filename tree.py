@@ -138,7 +138,7 @@ class Node:
         self.partitions = list(partitions or [])
         self.manual_partition = manual_partition
         self.ranges = ranges
-        self.rules = rules
+        self.rules = RuleSet(rules) if isinstance(rules, list) else rules
         self.depth = depth
         self.children = []
         self.action = None
@@ -201,7 +201,7 @@ class Node:
     def is_useless(self):
         if not self.children:
             return False
-        return max(c.rules.length() for c in self.children) == self.rules.length()
+        return max(len(c.rules) for c in self.children) == len(self.rules)
 
     def pruned_rules(self):
         rules = self.rules.get_rules()
@@ -218,8 +218,7 @@ class Node:
                 new_rules.append(rule)
         new_rules.append(rules[0])
         new_rules.reverse()
-
-        return RuleSet(new_rules)
+        return new_rules
 
     def get_state(self):
         state = []
@@ -297,9 +296,9 @@ class Tree:
         self.leaf_threshold = leaf_threshold
         self.refinements = refinements
 
-        self.rules = RuleSet(rules)
+        self.rules = RuleSet(rules) if isinstance(rules, list) else rules
         self.root = self.create_node(
-            0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], RuleSet(rules), 1,
+            0, [0, 2**32, 0, 2**32, 0, 2**16, 0, 2**16, 0, 2**8], rules, 1,
             None, None)
         if (self.refinements["region_compaction"]):
             self.refinement_region_compaction(self.root)
@@ -327,7 +326,7 @@ class Tree:
         return self.current_node
 
     def is_leaf(self, node):
-        return node.rules.length() <= self.leaf_threshold
+        return len(node.rules) <= self.leaf_threshold
 
     def is_finish(self):
         return len(self.nodes_to_cut) == 0
@@ -408,12 +407,12 @@ class Tree:
 
         left_part = list(node.partitions)
         left_part.append((True, part_dim, part_size))
-        left = self.create_node(self.node_count, node.ranges, RuleSet(small_rules),
+        left = self.create_node(self.node_count, node.ranges, small_rules,
                                 node.depth + 1, left_part, None)
         self.node_count += 1
         right_part = list(node.partitions)
         right_part.append((False, part_dim, part_size))
-        right = self.create_node(self.node_count, node.ranges, RuleSet(big_rules),
+        right = self.create_node(self.node_count, node.ranges, big_rules,
                                  node.depth + 1, right_part, None)
         self.node_count += 1
 
@@ -439,7 +438,8 @@ class Tree:
             child_ranges[cut_dimension * 2 + 1] = min(
                 range_right, range_left + (i + 1) * range_per_cut)
 
-            child_rules = self.rules.intersect(cut_dimension,
+            child_rules = node.rules.intersect(
+                    cut_dimension,
                     child_ranges[cut_dimension * 2],
                     child_ranges[cut_dimension * 2 + 1])
 
@@ -523,7 +523,8 @@ class Tree:
             child_ranges[cut_dimension * 2 + 1] = min(
                 range_right, range_left + (i + 1) * range_per_cut)
 
-            child_rules = node.rules.intersect(cut_dimension,
+            child_rules = node.rules.intersect(
+                    cut_dimension,
                     child_ranges[cut_dimension * 2],
                     child_ranges[cut_dimension * 2 + 1])
 
@@ -588,12 +589,12 @@ class Tree:
         return nodes
 
     def refinement_rule_overlay(self, node):
-        if node.rules.length() == 0 or node.rules.length() > 500:
+        if len(node.rules) == 0 or len(node.rules) > 500:
             return
-        node.rules = node.pruned_rules()
+        node.rules = RuleSet(node.pruned_rules())
 
     def refinement_region_compaction(self, node):
-        if node.rules.length() == 0:
+        if len(node.rules) == 0:
             return
 
         new_ranges = list(node.rules[0].ranges)
@@ -640,15 +641,15 @@ class Tree:
             nodes_copy.append(
                 Node(node.id, list(node.ranges), list(node.rules), node.depth,
                      node.partitions, node.manual_partition))
-            max_rule_count = max(max_rule_count, node.rules.length())
+            max_rule_count = max(max_rule_count, len(node.rules))
         while True:
             flag = True
             merged_nodes = [nodes_copy[0]]
             last_node = nodes_copy[0]
             for i in range(1, len(nodes_copy)):
                 if self.check_contiguous_region(last_node, nodes_copy[i]):
-                    rules = set(last_node.rules.get_rules()).union(
-                        set(nodes_copy[i].get_rules()))
+                    rules = set(last_node.rules).union(
+                        set(nodes_copy[i].rules))
                     if len(rules) < len(last_node.rules) + len(nodes_copy[i].rules) and \
                         len(rules) < max_rule_count:
                         rules = list(rules)

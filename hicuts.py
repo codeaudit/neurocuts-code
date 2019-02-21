@@ -45,7 +45,7 @@ class HiCuts(object):
                                        range_right)
                 sm_C += (rule_range_right - range_left - 1) // range_per_cut - \
                     (rule_range_left - range_left) // range_per_cut + 1
-            if sm_C < self.spfac * node.rules.length() and \
+            if sm_C < self.spfac * len(node.rules) and \
                     cut_num * 2 <= range_right - range_left:
                 cut_num *= 2
             else:
@@ -57,7 +57,7 @@ class HiCuts(object):
         tree = self.build_tree()
 
         result = tree.compute_result()
-        result["bytes_per_rule"] = result["bytes_per_rule"] / tree.rules.length()
+        result["bytes_per_rule"] = result["bytes_per_rule"] / len(tree.rules)
         print("------mem_result-----")
         print("%s Result %d %d %d" %
               (datetime.datetime.now(), result["memory_access"],
