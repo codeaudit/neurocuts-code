@@ -204,21 +204,7 @@ class Node:
         return max(len(c.rules) for c in self.children) == len(self.rules)
 
     def pruned_rules(self):
-        rules = self.rules.get_rules()
-        new_rules = []
-        for i in range(len(rules) - 1):
-            rule = rules[len(rules) - 1 - i]
-            flag = False
-            for j in range(0, len(rules) - 1 - i):
-                high_priority_rule = rules[j]
-                if rule.is_covered_by(high_priority_rule, self.ranges):
-                    flag = True
-                    break
-            if not flag:
-                new_rules.append(rule)
-        new_rules.append(rules[0])
-        new_rules.reverse()
-        return new_rules
+        return self.rules.prune(self.ranges)
 
     def get_state(self):
         state = []
@@ -574,7 +560,7 @@ class Tree:
             last_node = nodes[0]
             for i in range(1, len(nodes)):
                 if self.check_contiguous_region(last_node, nodes[i]):
-                    if set(last_node.rules.get_rules()) == set(nodes[i].rules.get_rules()):
+                    if last_node.rules == nodes[i].rules:
                         self.merge_region(last_node, nodes[i])
                         flag = False
                         continue
@@ -591,7 +577,7 @@ class Tree:
     def refinement_rule_overlay(self, node):
         if len(node.rules) == 0 or len(node.rules) > 500:
             return
-        node.rules = RuleSet(node.pruned_rules())
+        node.rules = node.pruned_rules()
 
     def refinement_region_compaction(self, node):
         if len(node.rules) == 0:
