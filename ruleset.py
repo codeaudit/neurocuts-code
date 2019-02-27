@@ -10,7 +10,6 @@ def python_to_numpy(rules):
 
 
 def numpy_to_python(rules_data):
-    print("falling back to python")
     from tree import Rule
     rules = []
     for rule in rules_data:
@@ -101,15 +100,33 @@ class RuleSet:
         return count
 
     def compute_cuts(self, cut_dimension, range_left, range_right, cut_num):
-        rules = numpy_to_python(self.rules_data)
-        ret = cut_num
         range_per_cut = math.ceil((range_right - range_left) / cut_num)
-        for rule in rules:
-            rule_range_left = max(rule.ranges[cut_dimension * 2],
-                    range_left)
-            rule_range_right = min(rule.ranges[cut_dimension * 2 + 1],
-                    range_right)
-            ret += (rule_range_right - range_left - 1) // range_per_cut - \
-                   (rule_range_left - range_left) // range_per_cut + 1
 
-        return ret
+        if DEBUG:
+            start = time.time()
+            rules = numpy_to_python(self.rules_data)
+            ret = cut_num
+            for rule in rules:
+                rule_range_left = max(rule.ranges[cut_dimension * 2],
+                        range_left)
+                rule_range_right = min(rule.ranges[cut_dimension * 2 + 1],
+                        range_right)
+                ret += (rule_range_right - range_left - 1) // range_per_cut - \
+                       (rule_range_left - range_left) // range_per_cut + 1
+            py_time = time.time() - start
+            start2 = time.time()
+
+        rule_range_left = np.maximum(
+            self.rules_data[:, cut_dimension*2], range_left)
+        rule_range_right = np.minimum(
+            self.rules_data[:, cut_dimension*2+1], range_right)
+        np_ret = (  
+            cut_num +
+            np.sum((rule_range_right - range_left - 1) // range_per_cut -
+                (rule_range_left - range_left) // range_per_cut + 1))
+        if DEBUG:
+            np_time = time.time() - start2
+            print("compute_cuts speedup", py_time / np_time)
+            assert np_ret == ret
+
+        return np_ret
