@@ -1,3 +1,5 @@
+import math
+
 class RuleSet:
     def __init__(self, rules):
         self.rules = rules
@@ -37,3 +39,24 @@ class RuleSet:
         new_rules.reverse()
 
         return RuleSet(new_rules)
+
+    def distinct_components_count(self, ranges, i):
+        distinct_components = set()
+        for rule in self.rules:
+            left = max(rule.ranges[i * 2], ranges[i * 2])
+            right = min(rule.ranges[i * 2 + 1], ranges[i * 2 + 1])
+            distinct_components.add((left, right))
+        return len(distinct_components)
+
+    def compute_cuts(self, cut_dimension, range_left, range_right, cut_num):
+        ret = cut_num
+        range_per_cut = math.ceil((range_right - range_left) / cut_num)
+        for rule in self.rules:
+            rule_range_left = max(rule.ranges[cut_dimension * 2],
+                    range_left)
+            rule_range_right = min(rule.ranges[cut_dimension * 2 + 1],
+                    range_right)
+            ret += (rule_range_right - range_left - 1) // range_per_cut - \
+                   (rule_range_left - range_left) // range_per_cut + 1
+
+        return ret
