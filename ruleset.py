@@ -1,8 +1,10 @@
+import numpy as np
 import math
 
 class RuleSet:
     def __init__(self, rules):
         self.rules = rules
+        self.rules_data = np.array([r.ranges for r in rules], dtype=np.uint32)
         self._rules_in_set = None
 
     @property
