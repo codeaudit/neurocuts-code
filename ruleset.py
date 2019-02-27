@@ -2,6 +2,7 @@ import time
 import numpy as np
 import math
 
+# Slow mode -- checks numpy result against Python implementation
 DEBUG = False
 
 
@@ -26,7 +27,7 @@ class RuleSet:
         elif rules_data is not None:
             self.rules_data = rules_data
         else:
-            raise ValueError("One of rules or rules_data must be givne")
+            raise ValueError("One of rules or rules_data must be given")
 
     def __len__(self):
         return len(self.rules_data)
