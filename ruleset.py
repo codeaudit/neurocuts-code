@@ -2,17 +2,11 @@ import time
 import numpy as np
 import math
 
-DEBUG = True
-
 
 class RuleSet:
     def __init__(self, rules):
-        if isinstance(rules, np.ndarray):
-            self.rules = None
-            self.rules_data = rules
-        else:
-            self.rules = rules
-            self.rules_data = np.array([r.ranges for r in rules], dtype=np.int64)
+        self.rules = rules
+        self.rules_data = np.array([r.ranges for r in rules], dtype=np.int64)
         self._rules_in_set = None
 
     @property
@@ -32,13 +26,12 @@ class RuleSet:
         return self.rules
 
     def intersect(self, dimension, range_left, range_right):
-        if DEBUG:
-            start = time.time()
-            intersected_rules = []
-            for rule in self.rules:
-                if rule.is_intersect(dimension, range_left, range_right):
-                    intersected_rules.append(rule)
-            norm_time = time.time() - start
+        start = time.time()
+        intersected_rules = []
+        for rule in self.rules:
+            if rule.is_intersect(dimension, range_left, range_right):
+                intersected_rules.append(rule)
+        norm_time = time.time() - start
         start2 = time.time()
 
         np_result = self.rules_data[
@@ -46,10 +39,9 @@ class RuleSet:
                 np.logical_or(
                     range_left >= self.rules_data[:, dimension*2+1],
                     range_right <= self.rules_data[:, dimension*2]))]
-        if DEBUG:
-            np_time = time.time() - start2
-            print("speedup", norm_time / np_time)
-            assert len(np_result) == len(intersected_rules)
+        np_time = time.time() - start2
+        print("speedup", norm_time / np_time)
+        assert len(np_result) == len(intersected_rules)
 
         return RuleSet(intersected_rules)
 
