@@ -3,13 +3,20 @@ import math
 class RuleSet:
     def __init__(self, rules):
         self.rules = rules
-        self.rules_in_set = set(rules)
+        self._rules_in_set = None
+
+    @property
+    def rules_in_set(self):
+        if self._rules_in_set is None:
+            self._rules_in_set = set(self.rules)
+
+        return self._rules_in_set
 
     def __len__(self):
         return len(self.rules)
 
     def __eq__(self, other):
-        return self.rules_in_set == set(other.rules_in_set)
+        return self.rules_in_set == other.rules_in_set
 
     def get_rules(self):
         return self.rules
