@@ -1,4 +1,3 @@
-import math
 import datetime
 
 from tree import *
@@ -19,32 +18,18 @@ class HiCuts(object):
         cut_dimension = 0
         max_distinct_components_count = -1
         for i in range(5):
-            distinct_components = set()
-            for rule in node.rules:
-                left = max(rule.ranges[i * 2], node.ranges[i * 2])
-                right = min(rule.ranges[i * 2 + 1], node.ranges[i * 2 + 1])
-                distinct_components.add((left, right))
-            if max_distinct_components_count < len(distinct_components):
-                max_distinct_components_count = len(distinct_components)
+            count = node.rules.distinct_components_count(node.ranges, i)
+            if max_distinct_components_count < count:
+                max_distinct_components_count = count
                 cut_dimension = i
 
         # compute the number of cuts
         range_left = node.ranges[cut_dimension * 2]
         range_right = node.ranges[cut_dimension * 2 + 1]
-        #cut_num = min(
-        #    max(4, int(math.sqrt(len(node.rules)))),
-        #    range_right - range_left)
         cut_num = min(2, range_right - range_left)
         while True:
-            sm_C = cut_num
-            range_per_cut = math.ceil((range_right - range_left) / cut_num)
-            for rule in node.rules:
-                rule_range_left = max(rule.ranges[cut_dimension * 2],
-                                      range_left)
-                rule_range_right = min(rule.ranges[cut_dimension * 2 + 1],
-                                       range_right)
-                sm_C += (rule_range_right - range_left - 1) // range_per_cut - \
-                    (rule_range_left - range_left) // range_per_cut + 1
+            sm_C = node.rules.compute_cuts(cut_dimension, range_left,
+                    range_right, cut_num)
             if sm_C < self.spfac * len(node.rules) and \
                     cut_num * 2 <= range_right - range_left:
                 cut_num *= 2
