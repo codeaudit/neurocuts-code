@@ -55,7 +55,7 @@ class Rule:
     def is_covered_by(self, other, ranges):
         for i in range(5):
             if (max(self.ranges[i*2], ranges[i*2]) < \
-                    max(other.ranges[i*2], ranges[i*2]))or \
+                    max(other.ranges[i*2], ranges[i*2])) or \
                     (min(self.ranges[i*2+1], ranges[i*2+1]) > \
                     min(other.ranges[i*2+1], ranges[i*2+1])):
                 return False

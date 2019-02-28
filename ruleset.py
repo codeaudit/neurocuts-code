@@ -5,10 +5,8 @@ import math
 # Slow mode -- checks numpy result against Python implementation
 DEBUG = False
 
-
 def python_to_numpy(rules):
     return np.array([r.ranges + [r.priority] for r in rules], dtype=np.int64)
-
 
 def numpy_to_python(rules_data):
     from tree import Rule
@@ -33,6 +31,7 @@ class RuleSet:
         return len(self.rules_data)
 
     def __eq__(self, other):
+        # TODO: Is this correct? This is not the set equliaty.
         return np.array_equal(self.rules_data, other.rules_data)
 
     def intersect(self, dimension, range_left, range_right):
@@ -59,23 +58,44 @@ class RuleSet:
         return RuleSet(rules_data=np_result)
 
     def prune(self, ranges):
-        rules = numpy_to_python(self.rules_data)
-        new_rules = []
-        rule_len = len(rules)
-        for i in range(rule_len - 1):
-            rule = rules[rule_len - 1 - i]
-            flag = False
-            for j in range(0, rule_len - 1 - i):
-                high_priority_rule = rules[j]
-                if rule.is_covered_by(high_priority_rule, ranges):
-                    flag = True
-                    break
-            if not flag:
-                new_rules.append(rule)
-        new_rules.append(rules[0])
-        new_rules.reverse()
 
-        return RuleSet(new_rules)
+        start2 = time.time()
+        l = self.rules_data.shape[0]
+        not_covered = np.triu(np.ones((l, l), dtype=bool))
+        for i in range(5):
+            left = np.maximum(self.rules_data[:, i * 2], ranges[i * 2])
+            right = np.minimum(self.rules_data[:, i * 2 + 1], ranges[i * 2 + 1])
+            left_right = np.stack([left, right], axis=1)
+            not_covered = np.logical_or(not_covered, np.logical_or(np.less.outer(left, left), np.greater.outer(right, right)))
+        not_covered_mask = np.all(not_covered, axis=1)
+        pruned_rules = self.rules_data[not_covered_mask]
+        np_time = time.time() - start2
+
+        if DEBUG:
+            rules = numpy_to_python(self.rules_data)
+            start = time.time()
+            bool_1d = np.zeros(len(rules), dtype=bool)
+            new_rules = []
+            rule_len = len(rules)
+            for i in range(rule_len - 1):
+                rule = rules[rule_len - 1 - i]
+                flag = False
+                for j in range(rule_len - 1 - i):
+                    if rule.is_covered_by(rules[j], ranges):
+                        flag = True
+                        break
+                if not flag:
+                    new_rules.append(rule)
+                    bool_1d[rule_len - 1 - i] = True
+            new_rules.append(rules[0])
+            bool_1d[0] = True
+            new_rules.reverse()
+            py_time = time.time() - start
+
+            print("prune speedup", py_time / np_time)
+            assert np.array_equal(bool_1d, not_covered_mask)
+
+        return RuleSet(rules_data=pruned_rules)
 
     def distinct_components_count(self, ranges, i):
         if DEBUG:
@@ -121,7 +141,7 @@ class RuleSet:
             self.rules_data[:, cut_dimension*2], range_left)
         rule_range_right = np.minimum(
             self.rules_data[:, cut_dimension*2+1], range_right)
-        np_ret = (  
+        np_ret = (
             cut_num +
             np.sum((rule_range_right - range_left - 1) // range_per_cut -
                 (rule_range_left - range_left) // range_per_cut + 1))
