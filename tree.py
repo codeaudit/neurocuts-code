@@ -142,6 +142,7 @@ class Node:
         self.children = []
         self.action = None
         self.pushup_rules = None
+        self.num_rules = len(rules)
 
     def is_partition(self):
         """Returns if node was partitioned."""
@@ -261,6 +262,8 @@ class Node:
             partition_state = [0] * 70
             partition_state[self.manual_partition] = 1
             state.extend(partition_state)
+        # Add num_rules
+        state.append(self.num_rules)
         return np.array(state)
 
     def __str__(self):

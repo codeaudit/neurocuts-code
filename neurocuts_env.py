@@ -1,6 +1,7 @@
 import collections
 import time
 import os
+import json
 import numpy as np
 import pickle
 from gym.spaces import Tuple, Box, Discrete, Dict
@@ -71,8 +72,9 @@ class NeuroCutsEnv(MultiAgentEnv):
             Discrete(NUM_DIMENSIONS),
             Discrete(max_cuts_per_dimension + self.num_part_levels)
         ])
+        # Add num_rules
         self.observation_space = Dict({
-            "real_obs": Box(0, 1, (278, ), dtype=np.float32),
+            "real_obs": Box(0, 1, (279, ), dtype=np.float32),
             "action_mask": Box(
                 0,
                 1, (NUM_DIMENSIONS + max_cuts_per_dimension +
@@ -201,6 +203,19 @@ class NeuroCutsEnv(MultiAgentEnv):
         rew.update({s.id: 0 for s in needs_split})
         done.update({"__all__": False})
         info.update({s.id: {} for s in needs_split})
+
+        # print("obs in env: {}\n".format(obs))
+
+        # Collect obs
+        path = "obs1.json"
+        for key, val in obs.items():
+            ob = val["real_obs"].tolist()
+            act = val["action_mask"]
+            with open(path, "a") as f:
+                f.write(json.dumps(key) + "\n")
+                f.write(json.dumps(ob) + "\n")
+                f.write(json.dumps(act) + "\n")
+
         return obs, rew, done, info
 
     def save_if_best(self, result):
@@ -264,7 +279,8 @@ class NeuroCutsEnv(MultiAgentEnv):
         return rew
 
     def _zeros(self):
-        zeros = [0] * 278
+        # Add num_rules
+        zeros = [0] * 279
         return {
             "real_obs": zeros,
             "action_mask": [1] *

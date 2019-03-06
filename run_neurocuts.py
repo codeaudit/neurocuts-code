@@ -4,6 +4,7 @@ import argparse
 import os
 import glob
 import json
+import time
 
 from gym.spaces import Tuple, Box, Discrete, Dict
 import numpy as np
@@ -17,6 +18,7 @@ from ray.rllib.agents.ppo.ppo_policy_graph import PPOPolicyGraph
 
 from neurocuts_env import NeuroCutsEnv
 from mask import PartitionMaskModel
+from ray.rllib.agents.ppo import PPOAgent
 
 parser = argparse.ArgumentParser()
 
@@ -117,39 +119,58 @@ if __name__ == "__main__":
 
     ModelCatalog.register_custom_model("mask", PartitionMaskModel)
 
+    config =  {
+        "num_gpus": 1 if args.gpu else 0,
+        "num_workers": args.num_workers,
+        "sgd_minibatch_size": 100 if args.fast else 1000,
+        "sample_batch_size": 200 if args.fast else 5000,
+        # "sample_batch_size": tune.grid_search([200, 400]),
+        "train_batch_size": 1000 if args.fast else 15000,
+        "batch_mode": "complete_episodes",
+        "observation_filter": "NoFilter",
+        "model": {
+            "custom_model": "mask",
+            "fcnet_hiddens": [512, 512],
+        },
+        "vf_share_layers": True,
+        "entropy_coeff": 0.01,
+        "callbacks": {
+            "on_episode_end": tune.function(on_episode_end),
+        },
+        "env_config": {
+            "dump_dir": args.dump_dir,
+            "partition_mode": args.partition_mode,
+            "reward_shape": args.reward_shape,
+            "max_depth": 100 if args.fast else 500,
+            "max_actions": 1000 if args.fast else 15000,
+            "depth_weight": args.depth_weight,
+            "rules": args.rules[0],
+        },
+    }
+    # TODO: visualize
+    start = time.time()
+    file = "/Users/yitianzou/ray_results/neurocuts_None/PPO_tree_env_1_rules=_Users_yitianzou_neurocuts-code_classbench_acl5_1k,sample_batch_size=400_2019-02-20_15-30-42uewkqv_l/checkpoint_1/checkpoint-1"
+    env = NeuroCutsEnv(rules_file="classbench/acl5_1k")
+    agent = PPOAgent(env="tree_env", config=config)
+    agent.restore(file)
+    obs = env._zeros()
+    obs = agent.local_evaluator.preprocessors["default"].transform(obs)
+    print("obs: {}\n".format(obs))
+    value = agent.get_policy()._value(obs)
+    print("value: {}\n".format(value))
+
     run_experiments({
         "neurocuts_{}".format(args.partition_mode): {
             "run": "PPO",
             "env": "tree_env",
             "stop": {
-                "timesteps_total": 100000 if args.fast else 10000000,
+                # "timesteps_total": 100000 if args.fast else 10000000,
+                "timesteps_total": 1 if args.fast else 10000000,
             },
-            "config": {
-                "num_gpus": 0.2 if args.gpu else 0,
-                "num_workers": args.num_workers,
-                "sgd_minibatch_size": 100 if args.fast else 1000,
-                "sample_batch_size": 200 if args.fast else 5000,
-                "train_batch_size": 1000 if args.fast else 15000,
-                "batch_mode": "complete_episodes",
-                "observation_filter": "NoFilter",
-                "model": {
-                    "custom_model": "mask",
-                    "fcnet_hiddens": [512, 512],
-                },
-                "vf_share_layers": True,
-                "entropy_coeff": 0.01,
-                "callbacks": {
-                    "on_episode_end": tune.function(on_episode_end),
-                },
-                "env_config": {
-                    "dump_dir": args.dump_dir,
-                    "partition_mode": args.partition_mode,
-                    "reward_shape": args.reward_shape,
-                    "max_depth": 100 if args.fast else 500,
-                    "max_actions": 1000 if args.fast else 15000,
-                    "depth_weight": args.depth_weight,
-                    "rules": grid_search(args.rules),
-                },
-            },
+            "checkpoint_freq": 1,
+            "config":
+                config
         },
     })
+
+    print("Total split time", time.time() - start)
