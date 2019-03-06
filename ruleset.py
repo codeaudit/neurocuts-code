@@ -26,13 +26,21 @@ class RuleSet:
             self.rules_data = rules_data
         else:
             raise ValueError("One of rules or rules_data must be given")
+        self._rules_in_set = None
 
     def __len__(self):
         return len(self.rules_data)
 
+    def rules_in_set(self):
+        if self._rules_in_set is None:
+            self._rules_in_set = np.unique(self.rules_data)
+        return self._rules_in_set
+
     def __eq__(self, other):
-        # TODO: Is this correct? This is not the set equliaty.
-        return np.array_equal(self.rules_data, other.rules_data)
+        # The first assertion is violated but the second one is true
+        #assert np.array_equal(self.rules_data, other.rules_data) == (set(numpy_to_python(self.rules_data)) == set(numpy_to_python(other.rules_data)))
+        #assert np.array_equal(self.rules_data, other.rules_data) == np.array_equal(self.rules_in_set(), other.rules_in_set())
+        return np.array_equal(self.rules_in_set(), other.rules_in_set())
 
     def intersect(self, dimension, range_left, range_right):
         if DEBUG:
