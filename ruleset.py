@@ -1,9 +1,10 @@
 import time
+from numba import jit
 import numpy as np
 import math
 
 # Slow mode -- checks numpy result against Python implementation
-DEBUG = True
+DEBUG = False
 DEBUG_EQUALITY = False
 
 def python_to_numpy(rules):
@@ -17,9 +18,6 @@ def numpy_to_python(rules_data):
         priority = rule[-1]
         rules.append(Rule(priority, ranges))
     return rules
-
-
-from numba import jit
 
 
 @jit(nopython=True, cache=True)
@@ -107,7 +105,6 @@ class RuleSet:
         return RuleSet(rules_data=np_result)
 
     def prune(self, ranges):
-
         start2 = time.time()
         numba_mask = prune_numba(self.rules_data, ranges)
         pruned_rules = self.rules_data[numba_mask]

@@ -577,7 +577,8 @@ class Tree:
     def refinement_rule_overlay(self, node):
         if len(node.rules) == 0 or len(node.rules) > 500:
             return
-        node.rules = node.pruned_rules()
+        if not self.is_leaf(node):
+            node.rules = node.pruned_rules()
 
     def refinement_region_compaction(self, node):
         if len(node.rules) == 0:
