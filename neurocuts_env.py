@@ -173,7 +173,7 @@ class NeuroCutsEnv(MultiAgentEnv):
             result = self.tree.compute_result()
             rules_remaining = set()
             for n in nodes_remaining:
-                for r in n.rules:
+                for r in n.rules.rules_data:
                     rules_remaining.add(str(r))
             info[self.tree.root.id] = {
                 "bytes_per_rule": result["bytes_per_rule"],

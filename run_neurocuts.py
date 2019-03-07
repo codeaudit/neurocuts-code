@@ -132,6 +132,7 @@ if __name__ == "__main__":
                 "train_batch_size": 1000 if args.fast else 15000,
                 "batch_mode": "complete_episodes",
                 "observation_filter": "NoFilter",
+                "num_envs_per_worker": 8,
                 "model": {
                     "custom_model": "mask",
                     "fcnet_hiddens": [512, 512],
