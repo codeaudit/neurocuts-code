@@ -3,7 +3,7 @@ import numpy as np
 import math
 
 # Slow mode -- checks numpy result against Python implementation
-DEBUG = False
+DEBUG = True
 DEBUG_EQUALITY = False
 
 def python_to_numpy(rules):
@@ -134,7 +134,7 @@ class RuleSet:
             new_rules.reverse()
             py_time = time.time() - start
 
-            print("prune speedup", py_time / np_time)
+            print("prune speedup", py_time / np_time, len(self.rules_data))
             assert np.array_equal(bool_1d, numba_mask)
 
         return RuleSet(rules_data=pruned_rules)
