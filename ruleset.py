@@ -3,7 +3,7 @@ import numpy as np
 import math
 
 # Slow mode -- checks numpy result against Python implementation
-DEBUG = True
+DEBUG = False
 DEBUG_EQUALITY = False
 
 def python_to_numpy(rules):
